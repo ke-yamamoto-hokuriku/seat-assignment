@@ -28,7 +28,7 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.1.1　2026.04.05</div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.1.2　2026.04.05</div>
 <script src="rooms.js"></script>
 <script>
 const {
@@ -170,7 +170,7 @@ function parseFile(data) {
   }
 }
 function App() {
-  const [roomId, setRoomId] = useState("201(247)");
+  const [roomId, setRoomId] = useState("201");
   const [students, setStudents] = useState([]);
   const [info, setInfo] = useState({});
   const [cfg, setCfg] = useState({
