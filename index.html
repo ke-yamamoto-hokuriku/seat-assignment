@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>北陸大学座席指定システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:#eef0f6;min-height:100vh;padding:10px}
+.header{background:linear-gradient(135deg,#1a237e,#303f9f);color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.btn-upload{border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px}
+.btn-room{border-radius:6px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-room.active{background:#1a237e;color:#fff;border:2px solid #1a237e}
+.btn-room.inactive{background:#f0f0f5;color:#333;border:2px solid #ddd}
+.ctrl-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ctrl-label{font-size:10px;font-weight:600;color:#444;display:block;margin-bottom:2px}
+.ctrl-select{font-size:12px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;height:30px;background:#fff}
+.ctrl-num{font-size:12px;padding:3px;border:1px solid #ccc;border-radius:6px;width:44px;height:30px;text-align:center}
+.btn-export{background:#1a237e;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer;height:32px;display:flex;align-items:center;gap:6px}
+.stats{margin-top:6px;font-size:11px;color:#666;display:flex;gap:14px;flex-wrap:wrap}
+.stats b{color:#333}
+.warn{color:#c62828;font-weight:600}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）</div>
+<script>
+const {
+  useState,
+  useRef,
+  useMemo
+} = React;
+function rectGrid(nR, nC) {
+  const g = [];
+  for (let r = 0; r < nR; r++) {
+    const row = [];
+    for (let c = 0; c < nC; c++) row.push(c * nR + r + 1);
+    g.push(row);
+  }
+  return g;
+}
+const ROOMS = {
+  "201": {
+    name: "201",
+    capacity: 253,
+    rows: 18,
+    cols: 20,
+    podium: "201教室",
+    sections: [{
+      name: "正面 左",
+      s: 0,
+      e: 6
+    }, {
+      name: "201教室",
+      s: 7,
+      e: 14
+    }, {
+      name: "正面 右",
+      s: 15,
+      e: 19
+    }],
+    grid: [[null, null, null, 46, 62, 78, null, null, null, null, null, null, null, null, null, 172, 188, 204, null, null], [null, 12, 29, 47, 63, 79, null, null, null, null, null, null, null, null, null, 173, 189, 205, 220, 237], [null, 13, 30, 48, 64, 80, null, null, null, null, 124, 136, null, null, null, 174, 190, 206, 221, 238], [null, 14, 31, 49, 65, 81, null, null, null, null, 125, 137, null, null, null, 175, 191, 207, 222, 239], [null, 15, 32, 50, 66, 82, null, null, null, 114, 126, 138, 148, null, null, 176, 192, 208, 223, 240], [null, 16, 33, 51, 67, 83, null, null, null, 115, 127, 139, 149, null, null, 177, 193, 209, 224, 241], [null, 17, 34, 52, 68, 84, null, null, 106, 116, 128, 140, 150, 158, null, 178, 194, 210, 225, 242], [1, 18, 35, 53, 69, 85, null, null, 107, 117, 129, 141, 151, 159, null, 179, 195, 211, 226, 243], [2, 19, 36, 54, 70, 86, null, 100, 108, 118, 130, 142, 152, 160, 166, 180, 196, 212, 227, 244], [3, 20, 37, 55, 71, 87, null, 101, 109, 119, 131, 143, 153, 161, 167, 181, 197, 213, 228, 245], [4, 21, 38, 56, 72, 88, 94, 102, 110, 120, 132, 144, 154, 162, 168, 182, 198, 214, 229, 246], [5, 22, 39, 57, 73, 89, 95, 103, 111, 121, 133, 145, 155, 163, 169, 183, 199, 215, 230, 247], [6, 23, 40, 58, 74, 90, 96, 104, 112, 122, 134, 146, 156, 164, 170, 184, 200, 216, 231, 248], [7, 24, 41, 59, 75, 91, 97, 105, 113, 123, 135, 147, 157, 165, 171, 185, 201, 217, 232, 249], [8, 25, 42, 60, 76, 92, 98, null, null, null, null, null, null, null, null, 186, 202, 218, 233, 250], [9, 26, 43, 61, 77, 93, 99, null, null, null, null, null, null, null, null, 187, 203, 219, 234, 251], [10, 27, 44, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 235, 252], [11, 28, 45, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 236, 253]]
+  },
+  "202": {
+    name: "202",
+    capacity: 204,
+    rows: 12,
+    cols: 26,
+    podium: "202教室",
+    sections: [{
+      name: "正面 左",
+      s: 0,
+      e: 7
+    }, {
+      name: "202教室",
+      s: 8,
+      e: 17
+    }, {
+      name: "正面 右",
+      s: 18,
+      e: 25
+    }],
+    grid: [[null, null, null, null, null, null, null, null, null, null, null, null, 92, 103, null, null, null, null, null, null, null, null, null, null, null, null], [1, 12, 23, 34, null, null, null, null, null, null, null, null, 93, 104, null, null, null, null, null, null, null, null, 161, 172, 183, 194], [2, 13, 24, 35, null, null, null, null, null, null, null, 83, 94, 105, 114, null, null, null, null, null, null, null, 162, 173, 184, 195], [3, 14, 25, 36, 45, null, null, null, null, null, null, 84, 95, 106, 115, null, null, null, null, null, null, 152, 163, 174, 185, 196], [4, 15, 26, 37, 46, 54, null, null, null, null, null, 85, 96, 107, 116, null, null, null, null, null, 144, 153, 164, 175, 186, 197], [5, 16, 27, 38, 47, 55, null, null, null, null, 77, 86, 97, 108, 117, 123, null, null, null, null, 145, 154, 165, 176, 187, 198], [6, 17, 28, 39, 48, 56, null, null, null, 72, 78, 87, 98, 109, 118, 124, 129, null, null, null, 146, 155, 166, 177, 188, 199], [7, 18, 29, 40, 49, 57, 62, null, null, 73, 79, 88, 99, 110, 119, 125, 130, null, null, 139, 147, 156, 167, 178, 189, 200], [8, 19, 30, 41, 50, 58, 63, null, 70, 74, 80, 89, 100, 111, 120, 126, 131, 134, null, 140, 148, 157, 168, 179, 190, 201], [9, 20, 31, 42, 51, 59, 64, 67, 71, 75, 81, 90, 101, 112, 121, 127, 132, 135, 136, 141, 149, 158, 169, 180, 191, 202], [10, 21, 32, 43, 52, 60, 65, 68, null, 76, 82, 91, 102, 113, 122, 128, 133, null, 137, 142, 150, 159, 170, 181, 192, 203], [11, 22, 33, 44, 53, 61, 66, 69, null, null, null, null, null, null, null, null, null, null, 138, 143, 151, 160, 171, 182, 193, 204]]
+  },
+  "302": {
+    name: "302",
+    capacity: 119,
+    rows: 17,
+    cols: 7,
+    podium: "教 卓",
+    sections: [{
+      name: "左",
+      s: 0,
+      e: 1
+    }, {
+      name: "中央",
+      s: 2,
+      e: 4
+    }, {
+      name: "右",
+      s: 5,
+      e: 6
+    }],
+    grid: rectGrid(17, 7)
+  },
+  "302-I": {
+    name: "302-I",
+    capacity: 42,
+    rows: 6,
+    cols: 7,
+    podium: "教 卓",
+    sections: [{
+      name: "左",
+      s: 0,
+      e: 1
+    }, {
+      name: "中央",
+      s: 2,
+      e: 4
+    }, {
+      name: "右",
+      s: 5,
+      e: 6
+    }],
+    grid: rectGrid(6, 7)
+  },
+  "404": {
+    name: "404",
+    capacity: 120,
+    rows: 20,
+    cols: 6,
+    podium: "教 卓",
+    sections: [{
+      name: "左",
+      s: 0,
+      e: 1
+    }, {
+      name: "中央",
+      s: 2,
+      e: 3
+    }, {
+      name: "右",
+      s: 4,
+      e: 5
+    }],
+    grid: rectGrid(20, 6)
+  },
+  "406": {
+    name: "406",
+    capacity: 120,
+    rows: 20,
+    cols: 6,
+    podium: "教 卓",
+    sections: [{
+      name: "左",
+      s: 0,
+      e: 1
+    }, {
+      name: "中央",
+      s: 2,
+      e: 3
+    }, {
+      name: "右",
+      s: 4,
+      e: 5
+    }],
+    grid: rectGrid(20, 6)
+  }
+};
+const ROOM_LIST = ["201", "202", "302", "302-I", "404", "406"];
+const CW = 52,
+  CH = 22,
+  EG = 20,
+  SG = 24,
+  PAD = 30,
+  HDR = 46;
+function colX(c, secs) {
+  let g = 0;
+  for (let i = 0; i < secs.length - 1; i++) {
+    if (c > secs[i].e) g++;
+  }
+  return PAD + c * (CW + EG) + g * SG;
+}
+function rowYfn(r) {
+  return HDR + 6 + r * (CH * 2 + 4);
+}
+function calcTW(room) {
+  return colX(room.cols - 1, room.sections) + CW + PAD;
+}
+function calcTH(room) {
+  return rowYfn(room.rows - 1) + CH * 2 + PAD;
+}
+
+// 学籍番号の末尾の数字を取得
+function lastDigit(id) {
+  const m = id.match(/(\d)\D*$/);
+  if (m) return parseInt(m[1]);
+  // 末尾が数字でない場合、最後に見つかる数字を使う
+  const m2 = id.match(/(\d)/g);
+  return m2 ? parseInt(m2[m2.length - 1]) : 0;
+}
+function doAssign(room, students, cfg) {
+  let seats = [];
+  for (let r = 0; r < room.rows; r++) for (let c = 0; c < room.cols; c++) if (room.grid[r][c] !== null) seats.push({
+    r,
+    c,
+    n: room.grid[r][c]
+  });
+  let f = seats.filter(s => s.r >= cfg.skipFront && s.r <= room.rows - 1 - cfg.skipBack && s.c >= cfg.skipLeft && s.c <= room.cols - 1 - cfg.skipRight);
+  if (cfg.colGap > 0 || cfg.rowGap > 0) {
+    const rs = [...new Set(f.map(s => s.r))].sort((a, b) => a - b);
+    const cs = [...new Set(f.map(s => s.c))].sort((a, b) => a - b);
+    const kr = new Set(rs.filter((_, i) => i % (cfg.rowGap + 1) === 0));
+    const kc = new Set(cs.filter((_, i) => i % (cfg.colGap + 1) === 0));
+    f = f.filter(s => kr.has(s.r) && kc.has(s.c));
+  }
+  if (cfg.direction === "horizontal") {
+    f.sort((a, b) => a.r !== b.r ? a.r - b.r : cfg.leftRight === "left" ? a.c - b.c : b.c - a.c);
+  } else {
+    f.sort((a, b) => {
+      const d = cfg.leftRight === "left" ? a.c - b.c : b.c - a.c;
+      return d !== 0 ? d : a.r - b.r;
+    });
+  }
+  let ord;
+  if (cfg.order === "oddEven") {
+    // 学籍番号末尾が奇数の学生を先に、偶数を後に（それぞれ元の順序を維持）
+    const odd = students.filter(s => lastDigit(s.id) % 2 === 1);
+    const even = students.filter(s => lastDigit(s.id) % 2 === 0);
+    ord = [...odd, ...even];
+  } else if (cfg.order === "evenOdd") {
+    // 学籍番号末尾が偶数の学生を先に、奇数を後に
+    const even = students.filter(s => lastDigit(s.id) % 2 === 0);
+    const odd = students.filter(s => lastDigit(s.id) % 2 === 1);
+    ord = [...even, ...odd];
+  } else {
+    ord = [...students];
+  }
+  const m = {};
+  const len = Math.min(ord.length, f.length);
+  for (let i = 0; i < len; i++) m[f[i].n] = ord[i];
+  return {
+    m,
+    used: f.length,
+    placed: len
+  };
+}
+function parseFile(data) {
+  try {
+    const wb = XLSX.read(data, {
+      type: "array"
+    });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+      header: 1
+    });
+    let hi = -1,
+      ic = -1,
+      nc = -1;
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      if (!rows[i]) continue;
+      for (let j = 0; j < (rows[i].length || 0); j++) {
+        const v = String(rows[i][j] || "");
+        if (v === "学籍番号") {
+          hi = i;
+          ic = j;
+        }
+        if (v === "学生氏名") nc = j;
+      }
+      if (hi >= 0) break;
+    }
+    if (hi < 0) return {
+      st: [],
+      inf: {}
+    };
+    const st = [];
+    for (let k = hi + 1; k < rows.length; k++) {
+      if (!rows[k] || !rows[k][ic]) continue;
+      const id = String(rows[k][ic]).trim();
+      const nm = nc >= 0 && rows[k][nc] ? String(rows[k][nc]).trim() : "";
+      if (id) st.push({
+        id,
+        name: nm
+      });
+    }
+    const r1 = rows[1] || [];
+    return {
+      st,
+      inf: {
+        sub: r1[4] || "",
+        tea: r1[6] || ""
+      }
+    };
+  } catch (e) {
+    return {
+      st: [],
+      inf: {}
+    };
+  }
+}
+function App() {
+  const [roomId, setRoomId] = useState("201");
+  const [students, setStudents] = useState([]);
+  const [info, setInfo] = useState({});
+  const [cfg, setCfg] = useState({
+    direction: "horizontal",
+    leftRight: "left",
+    order: "sequential",
+    colGap: 0,
+    rowGap: 0,
+    skipFront: 0,
+    skipBack: 0,
+    skipLeft: 0,
+    skipRight: 0
+  });
+  const [exportImg, setExportImg] = useState(null);
+  const [fileName, setFileName] = useState("");
+  const svgRef = useRef(null);
+  const fileRef = useRef(null);
+  const room = ROOMS[roomId];
+  const secs = room.sections;
+  const tw = calcTW(room);
+  const th = calcTH(room);
+  const res = useMemo(() => {
+    if (!students.length) return {
+      m: {},
+      used: 0,
+      placed: 0
+    };
+    return doAssign(room, students, cfg);
+  }, [students, cfg, roomId]);
+  function onFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setFileName(file.name);
+    const rd = new FileReader();
+    rd.onload = ev => {
+      const r = parseFile(new Uint8Array(ev.target.result));
+      setStudents(r.st);
+      setInfo(r.inf);
+    };
+    rd.readAsArrayBuffer(file);
+  }
+  const up = (k, v) => setCfg(p => ({
+    ...p,
+    [k]: v
+  }));
+  function save() {
+    const el = svgRef.current;
+    if (!el) return;
+    const xml = new XMLSerializer().serializeToString(el);
+    const svg64 = btoa(unescape(encodeURIComponent(xml)));
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement("canvas");
+      cv.width = tw * 2;
+      cv.height = th * 2;
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.scale(2, 2);
+      ctx.drawImage(img, 0, 0, tw, th);
+      setExportImg(cv.toDataURL("image/png"));
+    };
+    img.src = "data:image/svg+xml;base64," + svg64;
+  }
+  function download() {
+    if (!exportImg) return;
+    const a = document.createElement("a");
+    a.href = exportImg;
+    a.download = "座席表_" + room.name + ".png";
+    a.click();
+  }
+
+  // Build SVG
+  const cells = [];
+  for (let r = 0; r < room.rows; r++) {
+    for (let c = 0; c < room.cols; c++) {
+      const sn = room.grid[r][c];
+      const x = colX(c, secs);
+      const y = rowYfn(r);
+      if (sn !== null) {
+        const st = res.m[sn];
+        cells.push(/*#__PURE__*/React.createElement("g", {
+          key: "s" + sn
+        }, /*#__PURE__*/React.createElement("text", {
+          x: x + CW / 2,
+          y: y + 8,
+          textAnchor: "middle",
+          fontSize: "6",
+          fill: "#999"
+        }, sn), /*#__PURE__*/React.createElement("rect", {
+          x: x,
+          y: y + 10,
+          width: CW,
+          height: CH,
+          rx: "2",
+          fill: st ? "#FFFDE7" : "#fff",
+          stroke: st ? "#c5a000" : "#ccc",
+          strokeWidth: st ? 1.2 : 0.5
+        }), st && /*#__PURE__*/React.createElement("text", {
+          x: x + CW / 2,
+          y: y + 25,
+          textAnchor: "middle",
+          fontSize: "8",
+          fontWeight: "bold",
+          fill: "#1a237e"
+        }, st.id)));
+        let inSame = false;
+        for (let si = 0; si < secs.length; si++) {
+          if (c >= secs[si].s && c < secs[si].e) {
+            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null) inSame = true;
+            break;
+          }
+        }
+        if (inSame) cells.push(/*#__PURE__*/React.createElement("rect", {
+          key: "g" + r + "_" + c,
+          x: x + CW + 2,
+          y: y + 12,
+          width: EG - 4,
+          height: CH - 4,
+          rx: "1",
+          fill: "#f4f4f8",
+          stroke: "#e8e8ee",
+          strokeWidth: 0.3
+        }));
+      } else {
+        const near = c > 0 && room.grid[r][c - 1] !== null || c < room.cols - 1 && room.grid[r][c + 1] !== null || r > 0 && room.grid[r - 1][c] !== null || r < room.rows - 1 && room.grid[r + 1][c] !== null;
+        if (near) cells.push(/*#__PURE__*/React.createElement("rect", {
+          key: "e" + r + "_" + c,
+          x: x,
+          y: y + 10,
+          width: CW,
+          height: CH,
+          rx: "2",
+          fill: "#fafafe",
+          stroke: "#eee",
+          strokeWidth: 0.3,
+          strokeDasharray: "3,2"
+        }));
+      }
+    }
+  }
+  const pcx = tw / 2;
+  const rowLabels = [];
+  for (let ri = 0; ri < room.rows; ri++) {
+    const ry2 = rowYfn(ri);
+    rowLabels.push(/*#__PURE__*/React.createElement("text", {
+      key: "rl" + ri,
+      x: 12,
+      y: ry2 + 25,
+      textAnchor: "middle",
+      fontSize: "9",
+      fontWeight: "bold",
+      fill: "#1a237e"
+    }, ri + 1));
+    rowLabels.push(/*#__PURE__*/React.createElement("text", {
+      key: "rr" + ri,
+      x: tw - 12,
+      y: ry2 + 25,
+      textAnchor: "middle",
+      fontSize: "9",
+      fontWeight: "bold",
+      fill: "#1a237e"
+    }, ri + 1));
+  }
+  const aisleLabels = [];
+  for (let ar = 0; ar < room.rows; ar++) {
+    const ay = rowYfn(ar);
+    for (let ai = 0; ai < secs.length - 1; ai++) {
+      const ax = (colX(secs[ai].e, secs) + CW + colX(secs[ai + 1].s, secs)) / 2;
+      aisleLabels.push(/*#__PURE__*/React.createElement("text", {
+        key: "a" + ai + "_" + ar,
+        x: ax,
+        y: ay + 25,
+        textAnchor: "middle",
+        fontSize: "7",
+        fill: "#bbb"
+      }, ar + 1));
+    }
+  }
+  const cfgF = [["colGap", "列間隔"], ["rowGap", "行間隔"], ["skipFront", "前 skip"], ["skipBack", "後 skip"], ["skipLeft", "左 skip"], ["skipRight", "右 skip"]];
+
+  // Count odd/even for display
+  const oddCount = students.filter(s => lastDigit(s.id) % 2 === 1).length;
+  const evenCount = students.filter(s => lastDigit(s.id) % 2 === 0).length;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "header"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 17,
+      fontWeight: 700
+    }
+  }, "\u5317\u9678\u5927\u5B66\u5EA7\u5E2D\u6307\u5B9A\u30B7\u30B9\u30C6\u30E0"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      opacity: 0.8
+    }
+  }, room.name, "\u6559\u5BA4\uFF08\u5B9A\u54E1", room.capacity, "\u540D\uFF09")), info.sub && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right",
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement("div", null, info.sub), /*#__PURE__*/React.createElement("div", null, info.tea))), /*#__PURE__*/React.createElement("div", {
+    className: "card"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: fileRef,
+    type: "file",
+    accept: ".xlsx,.xls",
+    onChange: onFile,
+    style: {
+      display: "none"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn-upload",
+    onClick: () => fileRef.current && fileRef.current.click(),
+    style: {
+      background: students.length > 0 ? "#e8f5e9" : "#e3f2fd",
+      color: students.length > 0 ? "#2e7d32" : "#1565c0",
+      border: students.length > 0 ? "2px solid #a5d6a7" : "2px dashed #90caf9"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 20
+    }
+  }, students.length > 0 ? "✅" : "📂"), students.length > 0 ? "ファイル変更" : "UNIPAファイルを選択"), students.length > 0 ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 600,
+      color: "#333"
+    }
+  }, fileName), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#2e7d32"
+    }
+  }, students.length, "\u540D\u8AAD\u8FBC\u6E08\uFF08\u5947\u6570\u672B\u5C3E:", oddCount, "\u540D / \u5076\u6570\u672B\u5C3E:", evenCount, "\u540D\uFF09")) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#888"
+    }
+  }, "UNIPA\u304B\u3089\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u305F\u5C65\u4FEE\u8005Excel\u30D5\u30A1\u30A4\u30EB\uFF08.xlsx\uFF09")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#1a237e"
+    }
+  }, "\u6559\u5BA4:"), ROOM_LIST.map(rid => {
+    const rm = ROOMS[rid];
+    const sel = rid === roomId;
+    return /*#__PURE__*/React.createElement("button", {
+      key: rid,
+      className: "btn-room " + (sel ? "active" : "inactive"),
+      onClick: () => {
+        setRoomId(rid);
+        setExportImg(null);
+      }
+    }, rm.name, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        opacity: 0.7,
+        marginLeft: 3
+      }
+    }, "(", rm.capacity, ")"));
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ctrl-row"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    className: "ctrl-label"
+  }, "\u8A70\u3081\u65B9"), /*#__PURE__*/React.createElement("select", {
+    className: "ctrl-select",
+    value: cfg.direction,
+    onChange: e => up("direction", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "horizontal"
+  }, "\u6A2A"), /*#__PURE__*/React.createElement("option", {
+    value: "vertical"
+  }, "\u7E26"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    className: "ctrl-label"
+  }, "\u5DE6\u53F3"), /*#__PURE__*/React.createElement("select", {
+    className: "ctrl-select",
+    value: cfg.leftRight,
+    onChange: e => up("leftRight", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "left"
+  }, "\u5DE6\u304B\u3089"), /*#__PURE__*/React.createElement("option", {
+    value: "right"
+  }, "\u53F3\u304B\u3089"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    className: "ctrl-label"
+  }, "\u4E26\u3073\u65B9"), /*#__PURE__*/React.createElement("select", {
+    className: "ctrl-select",
+    value: cfg.order,
+    onChange: e => up("order", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "sequential"
+  }, "\u9806\u756A\uFF08\u540D\u7C3F\u9806\uFF09"), /*#__PURE__*/React.createElement("option", {
+    value: "oddEven"
+  }, "\u5947\u6570\u2192\u5076\u6570"), /*#__PURE__*/React.createElement("option", {
+    value: "evenOdd"
+  }, "\u5076\u6570\u2192\u5947\u6570"))), cfgF.map(p => /*#__PURE__*/React.createElement("div", {
+    key: p[0]
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ctrl-label"
+  }, p[1]), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    className: "ctrl-num",
+    min: 0,
+    max: 25,
+    value: cfg[p[0]],
+    onChange: e => up(p[0], parseInt(e.target.value) || 0)
+  }))), /*#__PURE__*/React.createElement("button", {
+    className: "btn-export",
+    onClick: save
+  }, "\uD83D\uDDBC\uFE0F \u753B\u50CF\u751F\u6210"), exportImg && /*#__PURE__*/React.createElement("button", {
+    className: "btn-export",
+    onClick: download,
+    style: {
+      background: "#2e7d32"
+    }
+  }, "\uD83D\uDCBE \u30C0\u30A6\u30F3\u30ED\u30FC\u30C9")), students.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "stats"
+  }, /*#__PURE__*/React.createElement("span", null, "\u53D7\u8B1B\u8005: ", /*#__PURE__*/React.createElement("b", null, students.length)), /*#__PURE__*/React.createElement("span", null, "\u4F7F\u7528\u5E2D: ", /*#__PURE__*/React.createElement("b", null, res.used)), /*#__PURE__*/React.createElement("span", null, "\u914D\u7F6E\u6E08: ", /*#__PURE__*/React.createElement("b", null, res.placed)), students.length > res.used && /*#__PURE__*/React.createElement("span", {
+    className: "warn"
+  }, "\u26A0 ", students.length - res.used, "\u540D\u5206\u4E0D\u8DB3"), cfg.order !== "sequential" && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#1565c0"
+    }
+  }, "\uFF08", cfg.order === "oddEven" ? "奇数末尾→偶数末尾" : "偶数末尾→奇数末尾", "\u306E\u9806\u3067\u914D\u7F6E\uFF09"))), exportImg && /*#__PURE__*/React.createElement("div", {
+    className: "card"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: "#1a237e"
+    }
+  }, "\u751F\u6210\u753B\u50CF\uFF08\u53F3\u30AF\u30EA\u30C3\u30AF / \u9577\u62BC\u3057\u3067\u4FDD\u5B58\uFF09"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setExportImg(null),
+    style: {
+      background: "#eee",
+      border: "none",
+      borderRadius: 4,
+      padding: "3px 10px",
+      fontSize: 11,
+      cursor: "pointer"
+    }
+  }, "\u9589\u3058\u308B")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid #ddd",
+      borderRadius: 6,
+      overflow: "auto",
+      maxHeight: 500
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: exportImg,
+    alt: "\u5EA7\u5E2D\u8868",
+    style: {
+      width: "100%",
+      display: "block"
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "card",
+    style: {
+      padding: 8,
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    ref: svgRef,
+    viewBox: "0 0 " + tw + " " + th,
+    width: tw,
+    height: th,
+    xmlns: "http://www.w3.org/2000/svg",
+    style: {
+      display: "block",
+      margin: "0 auto"
+    }
+  }, /*#__PURE__*/React.createElement("rect", {
+    width: tw,
+    height: th,
+    fill: "#fff"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: tw - 8,
+    y: 14,
+    textAnchor: "end",
+    fontSize: "9",
+    fill: "#888"
+  }, "\u5B9A\u54E1 ", room.capacity, "\u540D"), /*#__PURE__*/React.createElement("rect", {
+    x: pcx - 40,
+    y: 3,
+    width: 80,
+    height: 18,
+    rx: 3,
+    fill: "#fff",
+    stroke: "#999",
+    strokeWidth: 0.8
+  }), /*#__PURE__*/React.createElement("text", {
+    x: pcx,
+    y: 15,
+    textAnchor: "middle",
+    fontSize: "10",
+    fontWeight: "bold",
+    fill: "#333"
+  }, room.podium || "教 卓"), rowLabels, aisleLabels, cells)), students.length > 0 && /*#__PURE__*/React.createElement("details", {
+    className: "card"
+  }, /*#__PURE__*/React.createElement("summary", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer"
+    }
+  }, "\u540D\u7C3F\uFF08", students.length, "\u540D\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6,
+      columns: "220px 4",
+      fontSize: 11
+    }
+  }, students.map((s, i) => {
+    let found = null;
+    const keys = Object.keys(res.m);
+    for (let ki = 0; ki < keys.length; ki++) {
+      if (res.m[keys[ki]].id === s.id) {
+        found = keys[ki];
+        break;
+      }
+    }
+    const d = lastDigit(s.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        padding: "1px 4px",
+        background: found ? "#f1f8e9" : "#fff3e0",
+        borderRadius: 2,
+        marginBottom: 1
+      }
+    }, /*#__PURE__*/React.createElement("b", null, s.id), " ", s.name, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#aaa",
+        fontSize: 9
+      }
+    }, "[", d % 2 === 1 ? "奇" : "偶", "]"), found && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#888",
+        float: "right"
+      }
+    }, "\u5E2D", found));
+  }))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
+
+</script>
+</body>
+</html>
