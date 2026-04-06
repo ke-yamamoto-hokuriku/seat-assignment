@@ -66,6 +66,15 @@ var SHAPE_202 = [
   [1,1,1,1,0,1,1,0,null,null,null,null,null,null,null,null,null,null,0,1,1,1,0,1,1,1]
 ];
 
+// 小教室 35名版 (5行×8列, col5=0: 中央2つ目の机を1名に)
+var SHAPE_SMALL_35 = [
+  [1,1,1,1,1,0,1,1],
+  [1,1,1,1,1,0,1,1],
+  [1,1,1,1,1,0,1,1],
+  [1,1,1,1,1,0,1,1],
+  [1,1,1,1,1,0,1,1]
+];
+
 // ========== ROOMS定義 ==========
 
 var ROOMS = {
@@ -85,18 +94,67 @@ var ROOMS = {
     sections: [{name:"正面 左",s:0,e:7},{name:"202教室",s:8,e:17},{name:"正面 右",s:18,e:25}],
     grid: generateGrid(SHAPE_202)
   },
+  // --- 302教室（10行×8列）---
   "302": {
-    name: "302", capacity: 72, rows: 12, cols: 6,
+    name: "302", capacity: 80, rows: 10, cols: 8,
     podium: "教 卓",
-    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:3},{name:"右",s:4,e:5}],
-    grid: rectGrid(12, 6)
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: rectGrid(10, 8)
   },
-  "302-I": {
-    name: "302-I", capacity: 36, rows: 6, cols: 6,
+
+  // --- 小教室（5行×8列）---
+  // 長机4つ: 左(2名) [通路] 中央2つつながり(4名or3名) [通路] 右(2名)
+  // 302-I, 302-II, 402-I, 402-II は同一レイアウト
+  "302-I(40)": {
+    name: "302-I(40)", capacity: 40, rows: 5, cols: 8,
     podium: "教 卓",
-    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:3},{name:"右",s:4,e:5}],
-    grid: rectGrid(6, 6)
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: rectGrid(5, 8)
   },
+  "302-I(35)": {
+    name: "302-I(35)", capacity: 35, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: generateGrid(SHAPE_SMALL_35)
+  },
+  "302-II(40)": {
+    name: "302-II(40)", capacity: 40, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: rectGrid(5, 8)
+  },
+  "302-II(35)": {
+    name: "302-II(35)", capacity: 35, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: generateGrid(SHAPE_SMALL_35)
+  },
+  "402-I(40)": {
+    name: "402-I(40)", capacity: 40, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: rectGrid(5, 8)
+  },
+  "402-I(35)": {
+    name: "402-I(35)", capacity: 35, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: generateGrid(SHAPE_SMALL_35)
+  },
+  "402-II(40)": {
+    name: "402-II(40)", capacity: 40, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: rectGrid(5, 8)
+  },
+  "402-II(35)": {
+    name: "402-II(35)", capacity: 35, rows: 5, cols: 8,
+    podium: "教 卓",
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: generateGrid(SHAPE_SMALL_35)
+  },
+
+  // --- 404/406教室（20行×6列）---
   "404": {
     name: "404", capacity: 120, rows: 20, cols: 6,
     podium: "教 卓",
@@ -110,4 +168,4 @@ var ROOMS = {
     grid: rectGrid(20, 6)
   }
 };
-var ROOM_LIST = ["201", "202", "302", "302-I", "404", "406"];
+var ROOM_LIST = ["201", "202", "302", "302-I(40)", "302-I(35)", "302-II(40)", "302-II(35)", "402-I(40)", "402-I(35)", "402-II(40)", "402-II(35)", "404", "406"];
