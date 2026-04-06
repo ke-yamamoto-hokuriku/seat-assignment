@@ -171,10 +171,12 @@ function seatsPerTable(n) {
 }
 
 // テーブル内の位置iが座席かギャップかを判定
-// 長方形の4人がけ: S,G,G,S（両端） / 扇型: 常に交互 S,G,S,G
-function isSeatPos(i, tableSize, roomType) {
+// leanRight=true: 右端（通路側）からS → 左半分のブロック用
+// leanRight=false: 左端（通路側）からS → 右半分のブロック用
+function isSeatPos(i, tableSize, roomType, leanRight) {
   if (tableSize <= 1) return true;
   if (roomType === "rect" && tableSize === 4) return (i === 0 || i === 3);
+  if (leanRight) return ((tableSize - 1 - i) % 2 === 0);
   return (i % 2 === 0);
 }
 
@@ -227,7 +229,8 @@ function generateRoom(roomId) {
       for (var t = 0; t < tables.length; t++) {
         for (var i = 0; i < tables[t]; i++) {
           var ci = blockStart[b] + offset + pos;
-          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type)) ? -1 : 0;
+          var leanRight = (b < midBlock);
+          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type, leanRight)) ? -1 : 0;
           pos++;
         }
       }
