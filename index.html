@@ -28,9 +28,14 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.1.4　2026.04.06</div>
-<script src="rooms.js"></script>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.0　2026.04.06</div>
+<script src="rooms_physical.js"></script>
 <script>
+// 物理データからROOMSを生成
+var ROOM_LIST = ["201","202","302","302-I","302-II","402","402-I","402-II","404","406","431"];
+var ROOMS = {};
+ROOM_LIST.forEach(function(id) { ROOMS[id] = generateRoom(id); });
+
 const {
   useState,
   useRef,
@@ -170,9 +175,7 @@ function parseFile(data) {
   }
 }
 function App() {
-  const [groupIdx, setGroupIdx] = useState(0);
-  const [roomName, setRoomName] = useState(ROOM_GROUPS[0].names[0]);
-  const [cap, setCap] = useState(ROOM_GROUPS[0].caps[ROOM_GROUPS[0].caps.length - 1]);
+  const [roomId, setRoomId] = useState("201");
   const [students, setStudents] = useState([]);
   const [info, setInfo] = useState({});
   const [cfg, setCfg] = useState({
@@ -189,8 +192,6 @@ function App() {
   const [exportImg, setExportImg] = useState(null);
   const [fileName, setFileName] = useState("");
   const [excludeCenter, setExcludeCenter] = useState(false);
-  const group = ROOM_GROUPS[groupIdx];
-  const roomId = roomKey(roomName, cap, group);
   const svgRef = useRef(null);
   const fileRef = useRef(null);
   const room = ROOMS[roomId];
@@ -244,7 +245,7 @@ function App() {
     if (!exportImg) return;
     const a = document.createElement("a");
     a.href = exportImg;
-    a.download = "座席表_" + roomName + ".png";
+    a.download = "座席表_" + room.name + ".png";
     a.click();
   }
 
@@ -435,7 +436,7 @@ function App() {
       fontSize: 11,
       opacity: 0.8
     }
-  }, roomName, "\u6559\u5BA4\uFF08\u5B9A\u54E1", room.capacity, "\u540D\uFF09")), info.sub && /*#__PURE__*/React.createElement("div", {
+  }, room.name, "\u6559\u5BA4\uFF08\u5B9A\u54E1", room.capacity, "\u540D\uFF09")), info.sub && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "right",
       fontSize: 11
@@ -499,44 +500,20 @@ function App() {
       fontWeight: 700,
       color: "#1a237e"
     }
-  }, "\u6559\u5BA4:"), /*#__PURE__*/React.createElement("select", {
-    className: "ctrl-select",
-    value: groupIdx,
-    onChange: e => {
-      const gi = parseInt(e.target.value);
-      const g = ROOM_GROUPS[gi];
-      setGroupIdx(gi);
-      setRoomName(g.names[0]);
-      setCap(g.caps[g.caps.length - 1]);
-      setExportImg(null);
-    }
-  }, ROOM_GROUPS.map((g, i) => /*#__PURE__*/React.createElement("option", {
-    key: i,
-    value: i
-  }, g.label))), group.names.length > 1 && /*#__PURE__*/React.createElement("span", {
-    style: {fontSize: 12, fontWeight: 700, color: "#1a237e", marginLeft: 8}
-  }, "\u6559\u5BA4\u540D:"), group.names.length > 1 && group.names.map(n => /*#__PURE__*/React.createElement("button", {
-    key: n,
-    className: "btn-room " + (n === roomName ? "active" : "inactive"),
-    onClick: () => {
-      setRoomName(n);
-      setExportImg(null);
-    }
-  }, n)), group.caps.length > 1 && /*#__PURE__*/React.createElement("span", {
-    style: {fontSize: 12, fontWeight: 700, color: "#1a237e", marginLeft: 8}
-  }, "\u5B9A\u54E1:"), group.caps.length > 1 && group.caps.map(c => /*#__PURE__*/React.createElement("label", {
-    key: c,
-    style: {fontSize: 12, display: "flex", alignItems: "center", gap: 3, cursor: "pointer"}
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "radio",
-    name: "cap",
-    checked: c === cap,
-    onChange: () => {
-      setCap(c);
-      setExportImg(null);
-    },
-    style: {width: 14, height: 14}
-  }), c + "\u540D")))), /*#__PURE__*/React.createElement("div", {
+  }, "\u6559\u5BA4:"), ROOM_LIST.map(rid => {
+    const rm = ROOMS[rid];
+    const sel = rid === roomId;
+    return /*#__PURE__*/React.createElement("button", {
+      key: rid,
+      className: "btn-room " + (sel ? "active" : "inactive"),
+      onClick: () => {
+        setRoomId(rid);
+        setExportImg(null);
+      }
+    }, rm.name.replace(/\(.*\)/, ""), /*#__PURE__*/React.createElement("span", {
+      style: {fontSize: 9, opacity: 0.7, marginLeft: 3}
+    }, "(", rm.capacity, ")"));
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ctrl-row"
