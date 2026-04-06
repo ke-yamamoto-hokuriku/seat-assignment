@@ -158,7 +158,7 @@ var PHYSICAL = {
       [[1],[1],[1],[1]],  // R5
       [[1],[1],[1],[1]],  // R6
       [[1],[1],[1],[1]],  // R7
-      [[1],[1],[0],[0]]   // R8: 2台のみ
+      [[0],[0],[1],[1]]   // R8: 2台のみ
     ] // 30台=30名
   }
 };
@@ -168,6 +168,14 @@ var PHYSICAL = {
 function seatsPerTable(n) {
   if (n <= 0) return 0;
   return Math.floor((n + 1) / 2);
+}
+
+// テーブル内の位置iが座席かギャップかを判定
+// 3脚: S,G,S  4脚: S,G,G,S  5脚: S,G,S,G,S  6脚: S,G,S,G,S,G
+function isSeatPos(i, tableSize) {
+  if (tableSize <= 1) return true;
+  if (tableSize === 4) return (i === 0 || i === 3);  // 両端に座る
+  return (i % 2 === 0);  // 奇数・偶数テーブルは交互
 }
 
 function totalChairs(roomId) {
@@ -227,7 +235,7 @@ function generateRoom(roomId) {
       for (var t = 0; t < tables.length; t++) {
         for (var i = 0; i < tables[t]; i++) {
           var ci = blockStart[b] + offset + pos;
-          row[ci] = (room.type === "individual" || i % 2 === 0) ? -1 : 0;
+          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t])) ? -1 : 0;
           pos++;
         }
       }
