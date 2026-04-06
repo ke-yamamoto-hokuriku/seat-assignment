@@ -87,6 +87,14 @@ var SHAPE_431 = [
   [null,null,1,1]
 ];
 
+// 404/406教室 (20行×8列, 120席)
+// 各行: 左2席 [通路] 中央(1席+2空+1席) [通路] 右2席
+var SHAPE_404 = (function() {
+  var s = [];
+  for (var r = 0; r < 20; r++) s.push([1,1,1,0,0,1,1,1]);
+  return s;
+})();
+
 // ========== ROOMS定義 ==========
 
 var ROOMS = {
@@ -166,18 +174,18 @@ var ROOMS = {
     grid: generateGrid(SHAPE_SMALL_35)
   },
 
-  // --- 404/406教室（20行×6列）---
+  // --- 404/406教室（20行×8列、中央4人がけ机の両端使用）---
   "404": {
-    name: "404", capacity: 120, rows: 20, cols: 6,
+    name: "404", capacity: 120, rows: 20, cols: 8,
     podium: "教 卓",
-    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:3},{name:"右",s:4,e:5}],
-    grid: rectGrid(20, 6)
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: generateGrid(SHAPE_404)
   },
   "406": {
-    name: "406", capacity: 120, rows: 20, cols: 6,
+    name: "406", capacity: 120, rows: 20, cols: 8,
     podium: "教 卓",
-    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:3},{name:"右",s:4,e:5}],
-    grid: rectGrid(20, 6)
+    sections: [{name:"左",s:0,e:1},{name:"中央",s:2,e:5},{name:"右",s:6,e:7}],
+    grid: generateGrid(SHAPE_404)
   },
 
   // --- 431教室（8行×4列、個別机）---
