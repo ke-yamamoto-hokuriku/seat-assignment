@@ -41,10 +41,10 @@ const {
   useRef,
   useMemo
 } = React;
-const CW = 52,
+const CW = 40,
   CH = 22,
-  EG = 20,
-  SG = 24,
+  EG = 6,
+  SG = 16,
   PAD = 30,
   HDR = 46;
 function colX(c, secs) {
@@ -292,24 +292,6 @@ function App() {
           fontWeight: "bold",
           fill: "#1a237e"
         }, st.id)));
-        let inSame = false;
-        for (let si = 0; si < secs.length; si++) {
-          if (c >= secs[si].s && c < secs[si].e) {
-            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null && !ia.has(c)) inSame = true;
-            break;
-          }
-        }
-        if (inSame) cells.push(/*#__PURE__*/React.createElement("rect", {
-          key: "g" + r + "_" + c,
-          x: x + CW + 2,
-          y: y + 12,
-          width: EG - 4,
-          height: CH - 4,
-          rx: "1",
-          fill: "#f4f4f8",
-          stroke: "#e8e8ee",
-          strokeWidth: 0.3
-        }));
       } else if (isExcluded && sn !== null && sn > 0) {
         cells.push(/*#__PURE__*/React.createElement("g", {
           key: "x" + r + "_" + c
@@ -326,9 +308,9 @@ function App() {
       } else if (sn === 0) {
         cells.push(/*#__PURE__*/React.createElement("rect", {
           key: "d" + r + "_" + c,
-          x: x + 16,
+          x: x + 10,
           y: y + 14,
-          width: CW - 32,
+          width: CW - 20,
           height: CH - 8,
           rx: "2",
           fill: "#e8eaf0",

@@ -188,74 +188,65 @@ function totalChairs(roomId) {
 }
 
 
-// ========== グリッド生成（コンパクト版）==========
-// 座席位置のみのグリッドを生成（ギャップ椅子はUIのEGスペースで表現）
-// grid値: 1+=座席番号, null=座席なし
+// ========== グリッド生成（フルグリッド版）==========
+// 全物理椅子をグリッドに含める
+// grid値: 1+=座席番号, 0=ギャップ椅子, null=椅子なし
 
 function generateRoom(roomId) {
   var room = PHYSICAL[roomId];
   var nBlocks = room.tables[0].length;
 
-  // 1) 各ブロックの最大使用席数
-  var maxBlockSeats = [];
+  var maxBlockW = [];
   for (var b = 0; b < nBlocks; b++) {
-    var maxS = 0;
+    var maxW = 0;
     for (var r = 0; r < room.rows; r++) {
-      var s = 0;
-      for (var t = 0; t < room.tables[r][b].length; t++)
-        s += seatsPerTable(room.tables[r][b][t]);
-      if (s > maxS) maxS = s;
+      var w = 0;
+      for (var t = 0; t < room.tables[r][b].length; t++) w += room.tables[r][b][t];
+      if (w > maxW) maxW = w;
     }
-    maxBlockSeats.push(maxS);
+    maxBlockW.push(maxW);
   }
 
-  // 2) 総列数とブロック開始列
   var totalCols = 0, blockStart = [];
-  for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockSeats[b]; }
+  for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockW[b]; }
 
-  // 3) グリッド生成（座席位置のみ、扇型は右寄せ/左寄せ）
   var midBlock = nBlocks / 2;
   var grid = [];
   for (var r = 0; r < room.rows; r++) {
     var row = [];
     for (var c = 0; c < totalCols; c++) row.push(null);
     for (var b = 0; b < nBlocks; b++) {
-      var tables = room.tables[r][b];
-      var nSeatsInBlock = 0;
-      for (var t = 0; t < tables.length; t++)
-        nSeatsInBlock += seatsPerTable(tables[t]);
+      var tables = room.tables[r][b], chairCount = 0;
+      for (var t = 0; t < tables.length; t++) chairCount += tables[t];
       var offset = 0;
-      if (room.type === "fan" && b < midBlock)
-        offset = maxBlockSeats[b] - nSeatsInBlock;
-      var seatPos = 0;
+      if (room.type === "fan" && b < midBlock) offset = maxBlockW[b] - chairCount;
+      var pos = 0;
       for (var t = 0; t < tables.length; t++) {
-        var nSeats = seatsPerTable(tables[t]);
-        for (var i = 0; i < nSeats; i++) {
-          row[blockStart[b] + offset + seatPos] = 0;
-          seatPos++;
+        for (var i = 0; i < tables[t]; i++) {
+          var ci = blockStart[b] + offset + pos;
+          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type)) ? -1 : 0;
+          pos++;
         }
       }
     }
     grid.push(row);
   }
 
-  // 4) 座席番号付与（列優先・上から下）
   var seatNum = 1;
   for (var c = 0; c < totalCols; c++)
     for (var r = 0; r < room.rows; r++)
-      if (grid[r][c] === 0) grid[r][c] = seatNum++;
+      if (grid[r][c] === -1) grid[r][c] = seatNum++;
 
-  // 5) sections, innerAisles
   var sections = [], innerAisles = [];
   for (var si = 0; si < room.sections.length; si++) {
     var sec = room.sections[si];
     var s0 = blockStart[sec.blocks[0] - 1];
     var bLast = sec.blocks[sec.blocks.length - 1] - 1;
-    var sEnd = blockStart[bLast] + maxBlockSeats[bLast] - 1;
+    var sEnd = blockStart[bLast] + maxBlockW[bLast] - 1;
     sections.push({ name: sec.name, s: s0, e: sEnd });
     for (var bi = 0; bi < sec.blocks.length - 1; bi++) {
       var bx = sec.blocks[bi] - 1;
-      innerAisles.push(blockStart[bx] + maxBlockSeats[bx] - 1);
+      innerAisles.push(blockStart[bx] + maxBlockW[bx] - 1);
     }
   }
 
