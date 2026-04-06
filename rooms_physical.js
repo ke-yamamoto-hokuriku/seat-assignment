@@ -255,11 +255,30 @@ function generateRoom(roomId) {
     }
   }
 
+  // 中央1人席の除外候補（扇型教室のB3/B4で椅子数≤2の行）
+  var centerExclude = [];
+  if (room.type === "fan" && nBlocks >= 4) {
+    var centerBlocks = [2, 3]; // B3, B4
+    for (var r = 0; r < room.rows; r++) {
+      for (var bi = 0; bi < centerBlocks.length; bi++) {
+        var cb = centerBlocks[bi];
+        var chairs = 0;
+        for (var t = 0; t < room.tables[r][cb].length; t++) chairs += room.tables[r][cb][t];
+        if (chairs >= 1 && chairs <= 2) {
+          for (var c = blockStart[cb]; c < blockStart[cb] + maxBlockW[cb]; c++) {
+            if (grid[r][c] > 0) centerExclude.push([r, c]);
+          }
+        }
+      }
+    }
+  }
+
   return {
     name: room.name, capacity: seatNum - 1,
     rows: room.rows, cols: totalCols,
     podium: room.podium, sections: sections,
     innerAisles: innerAisles.length > 0 ? innerAisles : undefined,
+    centerExclude: centerExclude.length > 0 ? centerExclude : undefined,
     grid: grid
   };
 }

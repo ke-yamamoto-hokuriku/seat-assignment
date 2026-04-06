@@ -29,7 +29,7 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 <body>
 <div id="root"></div>
 <div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.0　2026.04.06</div>
-<script src="rooms_physical.js?v=3"></script>
+<script src="rooms_physical.js"></script>
 <script>
 var ROOM_LIST = ["201","202","302","302-I","302-II","402","402-I","402-II","404","406","431"];
 var ROOMS = {};
@@ -38,7 +38,7 @@ ROOM_LIST.forEach(function(id) { ROOMS[id] = generateRoom(id); });
 var R = React, ce = R.createElement;
 var useState = R.useState, useRef = R.useRef, useMemo = R.useMemo;
 
-var SW = 44, GW = 12, CH = 22, AG = 20, PAD = 24, HDR = 44;
+var SW = 56, GW = 12, CH = 22, AG = 20, PAD = 24, HDR = 44;
 function rowY(r) { return HDR + 6 + r * (CH * 2 + 4); }
 
 function calcLayout(room) {
@@ -70,11 +70,16 @@ function lastDigit(id) {
   return m2 ? parseInt(m2[m2.length - 1]) : 0;
 }
 
-function doAssign(room, students, cfg) {
+function doAssign(room, students, cfg, excludeCenter) {
   var seats = [], r, c;
+  var excSet = new Set();
+  if (excludeCenter && room.centerExclude) {
+    room.centerExclude.forEach(function(p) { excSet.add(p[0]+","+p[1]); });
+  }
   for (r = 0; r < room.rows; r++)
     for (c = 0; c < room.cols; c++)
-      if (room.grid[r][c] > 0) seats.push({ r: r, c: c, n: room.grid[r][c] });
+      if (room.grid[r][c] > 0 && !excSet.has(r+","+c))
+        seats.push({ r: r, c: c, n: room.grid[r][c] });
   var f = seats.filter(function(s) {
     return s.r >= cfg.skipFront && s.r <= room.rows - 1 - cfg.skipBack &&
            s.c >= cfg.skipLeft && s.c <= room.cols - 1 - cfg.skipRight;
@@ -95,6 +100,8 @@ function doAssign(room, students, cfg) {
     ord = students.filter(function(s){return lastDigit(s.id)%2===1}).concat(students.filter(function(s){return lastDigit(s.id)%2===0}));
   else if (cfg.order === "evenOdd")
     ord = students.filter(function(s){return lastDigit(s.id)%2===0}).concat(students.filter(function(s){return lastDigit(s.id)%2===1}));
+  else if (cfg.order === "reverse")
+    ord = students.slice().reverse();
   else ord = students.slice();
   var m = {}, len = Math.min(ord.length, f.length);
   for (var i = 0; i < len; i++) m[f[i].n] = ord[i];
@@ -138,6 +145,7 @@ function App() {
   }), cfg = _cfg[0], setCfg = _cfg[1];
   var _exp = useState(null), exportImg = _exp[0], setExportImg = _exp[1];
   var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
+  var _exc = useState(false), excludeCenter = _exc[0], setExcludeCenter = _exc[1];
   var svgRef = useRef(null), fileRef = useRef(null);
 
   var room = ROOMS[roomId];
@@ -145,8 +153,8 @@ function App() {
   var colXArr=layout.colXArr, colWArr=layout.colWArr, aisleAfter=layout.aisleAfter, tw=layout.tw, th=layout.th;
   var res = useMemo(function(){
     if (!students.length) return {m:{},used:0,placed:0};
-    return doAssign(room, students, cfg);
-  }, [students, cfg, roomId]);
+    return doAssign(room, students, cfg, excludeCenter);
+  }, [students, cfg, roomId, excludeCenter]);
 
   function onFile(e) {
     var file = e.target.files&&e.target.files[0]; if(!file) return;
@@ -172,18 +180,29 @@ function App() {
 
   // ===== SVG cells =====
   var cells = [];
+  var excSet = new Set();
+  if (excludeCenter && room.centerExclude) {
+    room.centerExclude.forEach(function(p){excSet.add(p[0]+","+p[1]);});
+  }
   for (var r = 0; r < room.rows; r++) {
     for (var c = 0; c < room.cols; c++) {
       var sn = room.grid[r][c];
       if (sn === null) continue;
       var x = colXArr[c], w = colWArr[c], y = rowY(r);
-      if (sn > 0) {
+      var isExcluded = excSet.has(r+","+c);
+      if (sn > 0 && !isExcluded) {
         var st = res.m[sn];
         cells.push(ce("g",{key:"s"+sn},
           ce("text",{x:x+w/2,y:y+8,textAnchor:"middle",fontSize:"6",fill:"#999"},sn),
           ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
             fill:st?"#FFFDE7":"#fff",stroke:st?"#c5a000":"#ccc",strokeWidth:st?1.2:0.5}),
           st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:"7",fontWeight:"bold",fill:"#1a237e"},st.id)
+        ));
+      } else if (sn > 0 && isExcluded) {
+        cells.push(ce("g",{key:"x"+r+"_"+c},
+          ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",fill:"#f0f0f0",stroke:"#ccc",strokeWidth:0.5}),
+          ce("line",{x1:x+4,y1:y+14,x2:x+w-4,y2:y+CH+6,stroke:"#bbb",strokeWidth:0.8}),
+          ce("line",{x1:x+w-4,y1:y+14,x2:x+4,y2:y+CH+6,stroke:"#bbb",strokeWidth:0.8})
         ));
       } else {
         cells.push(ce("rect",{key:"g"+r+"_"+c,
@@ -215,6 +234,13 @@ function App() {
   var pcx = (colXArr[midSec.s]+colXArr[midSec.e]+colWArr[midSec.e])/2;
   var secLabels = secs.map(function(sec,si){
     var sx = (colXArr[sec.s]+colXArr[sec.e]+colWArr[sec.e])/2;
+    var midIdx = Math.floor(secs.length/2);
+    if (si === midIdx && info.sub) {
+      return ce("g",{key:"sec"+si},
+        ce("text",{x:sx,y:HDR-12,textAnchor:"middle",fontSize:"8",fill:"#333",fontWeight:"bold"},info.sub),
+        ce("text",{x:sx,y:HDR-2,textAnchor:"middle",fontSize:"7",fill:"#666"},info.tea||"")
+      );
+    }
     return ce("text",{key:"sec"+si,x:sx,y:HDR-6,textAnchor:"middle",fontSize:"8",fill:"#666"},sec.name);
   });
 
@@ -258,19 +284,23 @@ function App() {
             ce("option",{value:"left"},"左から"),ce("option",{value:"right"},"右から"))),
         ce("div",null,ce("span",{className:"ctrl-label"},"並び方"),
           ce("select",{className:"ctrl-select",value:cfg.order,onChange:function(e){up("order",e.target.value)}},
-            ce("option",{value:"sequential"},"順番（名簿順）"),ce("option",{value:"oddEven"},"奇数→偶数"),ce("option",{value:"evenOdd"},"偶数→奇数"))),
+            ce("option",{value:"sequential"},"順番（名簿順）"),ce("option",{value:"reverse"},"逆順（名簿逆順）"),ce("option",{value:"oddEven"},"奇数→偶数"),ce("option",{value:"evenOdd"},"偶数→奇数"))),
         cfgF.map(function(p){return ce("div",{key:p[0]},ce("span",{className:"ctrl-label"},p[1]),
           ce("input",{type:"number",className:"ctrl-num",min:0,max:25,value:cfg[p[0]],
             onChange:function(e){up(p[0],parseInt(e.target.value)||0)}}));}),
         ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
-        exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
+        exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード"),
+        room.centerExclude&&ce("label",{style:{fontSize:12,display:"flex",alignItems:"center",gap:5,height:30,cursor:"pointer",userSelect:"none"}},
+          ce("input",{type:"checkbox",checked:excludeCenter,onChange:function(e){setExcludeCenter(e.target.checked)},style:{width:16,height:16}}),
+          "中央4席除外")),
       students.length>0&&ce("div",{className:"stats"},
         ce("span",null,"受講者: ",ce("b",null,students.length)),
         ce("span",null,"使用席: ",ce("b",null,res.used)),
         ce("span",null,"配置済: ",ce("b",null,res.placed)),
         students.length>res.used&&ce("span",{className:"warn"},"⚠ "+(students.length-res.used)+"名分不足"),
-        cfg.order!=="sequential"&&ce("span",{style:{color:"#1565c0"}},
-          "（"+(cfg.order==="oddEven"?"奇数末尾→偶数末尾":"偶数末尾→奇数末尾")+"の順で配置）"))),
+        cfg.order!=="sequential"&&cfg.order!=="reverse"&&ce("span",{style:{color:"#1565c0"}},
+          "（"+(cfg.order==="oddEven"?"奇数末尾→偶数末尾":"偶数末尾→奇数末尾")+"の順で配置）"),
+        cfg.order==="reverse"&&ce("span",{style:{color:"#1565c0"}},"（名簿逆順で配置）"))),
     exportImg&&ce("div",{className:"card"},
       ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
         ce("span",{style:{fontSize:13,fontWeight:700,color:"#1a237e"}},"生成画像（右クリック/長押しで保存）"),
