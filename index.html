@@ -43,7 +43,7 @@ const {
 } = React;
 const CW = 52,
   CH = 22,
-  EG = 20,
+  EG = 2,
   SG = 24,
   PAD = 30,
   HDR = 46;
@@ -292,24 +292,6 @@ function App() {
           fontWeight: "bold",
           fill: "#1a237e"
         }, st.id)));
-        let inSame = false;
-        for (let si = 0; si < secs.length; si++) {
-          if (c >= secs[si].s && c < secs[si].e) {
-            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null && !ia.has(c)) inSame = true;
-            break;
-          }
-        }
-        if (inSame) cells.push(/*#__PURE__*/React.createElement("rect", {
-          key: "g" + r + "_" + c,
-          x: x + CW + 2,
-          y: y + 12,
-          width: EG - 4,
-          height: CH - 4,
-          rx: "1",
-          fill: "#f4f4f8",
-          stroke: "#e8e8ee",
-          strokeWidth: 0.3
-        }));
       } else if (isExcluded && sn !== null && sn > 0) {
         cells.push(/*#__PURE__*/React.createElement("g", {
           key: "x" + r + "_" + c
@@ -334,18 +316,6 @@ function App() {
           fill: "#fff",
           stroke: "#ccc",
           strokeWidth: 0.5
-        }));
-        let inSame0 = false;
-        for (let si = 0; si < secs.length; si++) {
-          if (c >= secs[si].s && c < secs[si].e) {
-            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null && !ia.has(c)) inSame0 = true;
-            break;
-          }
-        }
-        if (inSame0) cells.push(/*#__PURE__*/React.createElement("rect", {
-          key: "g0" + r + "_" + c,
-          x: x + CW + 2, y: y + 12, width: EG - 4, height: CH - 4,
-          rx: "1", fill: "#f4f4f8", stroke: "#e8e8ee", strokeWidth: 0.3
         }));
       } else {
         const nearL = c > 0 && room.grid[r][c - 1] !== null && !allAisles.has(c - 1);

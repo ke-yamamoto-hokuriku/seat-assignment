@@ -145,19 +145,21 @@ var PHYSICAL = {
   "431": {
     name: "431", podium: "教 卓", type: "individual", rows: 8,
     sections: [
-      { name: "左", blocks: [1] },
-      { name: "右", blocks: [2] }
+      { name: "1", blocks: [1] },
+      { name: "2", blocks: [2] },
+      { name: "3", blocks: [3] },
+      { name: "4", blocks: [4] }
     ],
     tables: [
-      [[1,1],[1,1]],  // R1
-      [[1,1],[1,1]],  // R2
-      [[1,1],[1,1]],  // R3
-      [[1,1],[1,1]],  // R4
-      [[1,1],[1,1]],  // R5
-      [[1,1],[1,1]],  // R6
-      [[1,1],[1,1]],  // R7
-      [[1,1],[0  ]]   // R8: 左に2台のみ
-    ] // 30台=30名（独立机のため全席使用）
+      [[1],[1],[1],[1]],  // R1
+      [[1],[1],[1],[1]],  // R2
+      [[1],[1],[1],[1]],  // R3
+      [[1],[1],[1],[1]],  // R4
+      [[1],[1],[1],[1]],  // R5
+      [[1],[1],[1],[1]],  // R6
+      [[1],[1],[1],[1]],  // R7
+      [[1],[1],[0],[0]]   // R8: 2台のみ
+    ] // 30台=30名
   }
 };
 
@@ -188,24 +190,26 @@ function maxCapacity(roomId) {
 
 // ========== グリッド生成 ==========
 // 物理データ → 既存UIが期待するROOMS形式に変換
-// グリッドには使用席のみ含める（ギャップ椅子は含めない）
-// 既存UIのEGスペースでギャップを表現
+// グリッドには全物理椅子を含める:
+//   座席番号(1+) = 学生が座る位置
+//   0 = 物理的に椅子があるが空席（1席空けのギャップ）
+//   null = 椅子なし
 
 function generateRoom(roomId) {
   var room = PHYSICAL[roomId];
   var nBlocks = room.tables[0].length;
 
-  // 1) 各ブロックの最大使用席数を求める
-  var maxBlockSeats = [];
+  // 1) 各ブロックの最大幅（物理椅子数）を求める
+  var maxBlockW = [];
   for (var b = 0; b < nBlocks; b++) {
-    var maxS = 0;
+    var maxW = 0;
     for (var r = 0; r < room.rows; r++) {
-      var s = 0;
+      var w = 0;
       for (var t = 0; t < room.tables[r][b].length; t++)
-        s += seatsPerTable(room.tables[r][b][t]);
-      if (s > maxS) maxS = s;
+        w += room.tables[r][b][t];
+      if (w > maxW) maxW = w;
     }
-    maxBlockSeats.push(maxS);
+    maxBlockW.push(maxW);
   }
 
   // 2) 総列数とブロック開始列
@@ -213,10 +217,11 @@ function generateRoom(roomId) {
   var blockStart = [];
   for (var b = 0; b < nBlocks; b++) {
     blockStart.push(totalCols);
-    totalCols += maxBlockSeats[b];
+    totalCols += maxBlockW[b];
   }
 
-  // 3) グリッド生成（使用席のみ、nullで埋め）
+  // 3) グリッド生成（全物理椅子を配置）
+  var midBlock = nBlocks / 2;
   var grid = [];
   for (var r = 0; r < room.rows; r++) {
     var row = [];
@@ -224,23 +229,38 @@ function generateRoom(roomId) {
 
     for (var b = 0; b < nBlocks; b++) {
       var tables = room.tables[r][b];
-      var seatPos = 0;
+      var chairCount = 0;
+      for (var t = 0; t < tables.length; t++) chairCount += tables[t];
+
+      // 扇型: 左側ブロックは右寄せ、右側は左寄せ
+      var offset = 0;
+      if (room.type === "fan" && b < midBlock) {
+        offset = maxBlockW[b] - chairCount;
+      }
+
+      // テーブルごとに椅子を配置し、1席空けルール適用
+      var pos = 0;
       for (var t = 0; t < tables.length; t++) {
-        var nSeats = seatsPerTable(tables[t]);
-        for (var i = 0; i < nSeats; i++) {
-          row[blockStart[b] + seatPos] = 0; // 後で番号付与
-          seatPos++;
+        var tSize = tables[t];
+        for (var i = 0; i < tSize; i++) {
+          var colIdx = blockStart[b] + offset + pos;
+          if (room.type === "individual" || i % 2 === 0) {
+            row[colIdx] = -1; // 座れる席（後で番号付与）
+          } else {
+            row[colIdx] = 0;  // ギャップ椅子（空席表示）
+          }
+          pos++;
         }
       }
     }
     grid.push(row);
   }
 
-  // 4) 座席番号を付与（列優先・上から下）
+  // 4) 座席番号を付与（列優先・上から下、-1の位置のみ）
   var seatNum = 1;
   for (var c = 0; c < totalCols; c++) {
     for (var r = 0; r < room.rows; r++) {
-      if (grid[r][c] === 0) {
+      if (grid[r][c] === -1) {
         grid[r][c] = seatNum++;
       }
     }
@@ -253,13 +273,13 @@ function generateRoom(roomId) {
     var sec = room.sections[si];
     var sStart = blockStart[sec.blocks[0] - 1];
     var lastBlock = sec.blocks[sec.blocks.length - 1] - 1;
-    var sEnd = blockStart[lastBlock] + maxBlockSeats[lastBlock] - 1;
+    var sEnd = blockStart[lastBlock] + maxBlockW[lastBlock] - 1;
     sections.push({ name: sec.name, s: sStart, e: sEnd });
 
     // セクション内ブロック間 → innerAisle
     for (var bi = 0; bi < sec.blocks.length - 1; bi++) {
       var bIdx = sec.blocks[bi] - 1;
-      innerAisles.push(blockStart[bIdx] + maxBlockSeats[bIdx] - 1);
+      innerAisles.push(blockStart[bIdx] + maxBlockW[bIdx] - 1);
     }
   }
 
