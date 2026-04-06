@@ -31,657 +31,274 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 <div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.0　2026.04.06</div>
 <script src="rooms_physical.js"></script>
 <script>
-// 物理データからROOMSを生成
 var ROOM_LIST = ["201","202","302","302-I","302-II","402","402-I","402-II","404","406","431"];
 var ROOMS = {};
 ROOM_LIST.forEach(function(id) { ROOMS[id] = generateRoom(id); });
 
-const {
-  useState,
-  useRef,
-  useMemo
-} = React;
-const CW = 40,
-  CH = 22,
-  EG = 6,
-  SG = 16,
-  PAD = 30,
-  HDR = 46;
-function colX(c, secs) {
-  let g = 0;
-  for (let i = 0; i < secs.length - 1; i++) {
-    if (c > secs[i].e) g++;
+var R = React, ce = R.createElement;
+var useState = R.useState, useRef = R.useRef, useMemo = R.useMemo;
+
+var SW = 44, GW = 12, CH = 22, AG = 20, PAD = 24, HDR = 44;
+function rowY(r) { return HDR + 6 + r * (CH * 2 + 4); }
+
+function calcLayout(room) {
+  var colIsSeat = [], c, r;
+  for (c = 0; c < room.cols; c++) {
+    var seat = false;
+    for (r = 0; r < room.rows; r++) if (room.grid[r][c] > 0) { seat = true; break; }
+    colIsSeat.push(seat);
   }
-  return PAD + c * (CW + EG) + g * SG;
-}
-function rowYfn(r) {
-  return HDR + 6 + r * (CH * 2 + 4);
-}
-function calcTW(room) {
-  return colX(room.cols - 1, room.sections) + CW + PAD;
-}
-function calcTH(room) {
-  return rowYfn(room.rows - 1) + CH * 2 + PAD;
+  var aisleAfter = new Set();
+  if (room.innerAisles) room.innerAisles.forEach(function(a) { aisleAfter.add(a); });
+  for (var i = 0; i < room.sections.length - 1; i++) aisleAfter.add(room.sections[i].e);
+  var colXArr = [], colWArr = [], x = PAD;
+  for (c = 0; c < room.cols; c++) {
+    colXArr.push(x);
+    var w = colIsSeat[c] ? SW : GW;
+    colWArr.push(w);
+    x += w;
+    if (aisleAfter.has(c)) x += AG;
+  }
+  return { colIsSeat: colIsSeat, aisleAfter: aisleAfter, colXArr: colXArr, colWArr: colWArr,
+           tw: x + PAD, th: rowY(room.rows - 1) + CH * 2 + PAD };
 }
 
-// 学籍番号の末尾の数字を取得
 function lastDigit(id) {
-  const m = id.match(/(\d)\D*$/);
+  var m = id.match(/(\d)\D*$/);
   if (m) return parseInt(m[1]);
-  // 末尾が数字でない場合、最後に見つかる数字を使う
-  const m2 = id.match(/(\d)/g);
+  var m2 = id.match(/(\d)/g);
   return m2 ? parseInt(m2[m2.length - 1]) : 0;
 }
-function doAssign(room, students, cfg, excludeCenter) {
-  let seats = [];
-  const excSet = new Set();
-  if (excludeCenter && room.centerExclude) {
-    room.centerExclude.forEach(p => excSet.add(p[0] + "," + p[1]));
-  }
-  for (let r = 0; r < room.rows; r++) for (let c = 0; c < room.cols; c++) if (room.grid[r][c] !== null && room.grid[r][c] > 0 && !excSet.has(r + "," + c)) seats.push({
-    r,
-    c,
-    n: room.grid[r][c]
+
+function doAssign(room, students, cfg) {
+  var seats = [], r, c;
+  for (r = 0; r < room.rows; r++)
+    for (c = 0; c < room.cols; c++)
+      if (room.grid[r][c] > 0) seats.push({ r: r, c: c, n: room.grid[r][c] });
+  var f = seats.filter(function(s) {
+    return s.r >= cfg.skipFront && s.r <= room.rows - 1 - cfg.skipBack &&
+           s.c >= cfg.skipLeft && s.c <= room.cols - 1 - cfg.skipRight;
   });
-  let f = seats.filter(s => s.r >= cfg.skipFront && s.r <= room.rows - 1 - cfg.skipBack && s.c >= cfg.skipLeft && s.c <= room.cols - 1 - cfg.skipRight);
   if (cfg.colGap > 0 || cfg.rowGap > 0) {
-    const rs = [...new Set(f.map(s => s.r))].sort((a, b) => a - b);
-    const cs = [...new Set(f.map(s => s.c))].sort((a, b) => a - b);
-    const kr = new Set(rs.filter((_, i) => i % (cfg.rowGap + 1) === 0));
-    const kc = new Set(cs.filter((_, i) => i % (cfg.colGap + 1) === 0));
-    f = f.filter(s => kr.has(s.r) && kc.has(s.c));
+    var rs = Array.from(new Set(f.map(function(s){return s.r}))).sort(function(a,b){return a-b});
+    var cs = Array.from(new Set(f.map(function(s){return s.c}))).sort(function(a,b){return a-b});
+    var kr = new Set(rs.filter(function(_,i){return i%(cfg.rowGap+1)===0}));
+    var kc = new Set(cs.filter(function(_,i){return i%(cfg.colGap+1)===0}));
+    f = f.filter(function(s){return kr.has(s.r) && kc.has(s.c)});
   }
-  if (cfg.direction === "horizontal") {
-    f.sort((a, b) => a.r !== b.r ? a.r - b.r : cfg.leftRight === "left" ? a.c - b.c : b.c - a.c);
-  } else {
-    f.sort((a, b) => {
-      const d = cfg.leftRight === "left" ? a.c - b.c : b.c - a.c;
-      return d !== 0 ? d : a.r - b.r;
-    });
-  }
-  let ord;
-  if (cfg.order === "oddEven") {
-    // 学籍番号末尾が奇数の学生を先に、偶数を後に（それぞれ元の順序を維持）
-    const odd = students.filter(s => lastDigit(s.id) % 2 === 1);
-    const even = students.filter(s => lastDigit(s.id) % 2 === 0);
-    ord = [...odd, ...even];
-  } else if (cfg.order === "evenOdd") {
-    // 学籍番号末尾が偶数の学生を先に、奇数を後に
-    const even = students.filter(s => lastDigit(s.id) % 2 === 0);
-    const odd = students.filter(s => lastDigit(s.id) % 2 === 1);
-    ord = [...even, ...odd];
-  } else {
-    ord = [...students];
-  }
-  const m = {};
-  const len = Math.min(ord.length, f.length);
-  for (let i = 0; i < len; i++) m[f[i].n] = ord[i];
-  return {
-    m,
-    used: f.length,
-    placed: len
-  };
+  if (cfg.direction === "horizontal")
+    f.sort(function(a,b){return a.r !== b.r ? a.r - b.r : cfg.leftRight === "left" ? a.c - b.c : b.c - a.c});
+  else
+    f.sort(function(a,b){ var d = cfg.leftRight==="left" ? a.c-b.c : b.c-a.c; return d!==0?d:a.r-b.r; });
+  var ord;
+  if (cfg.order === "oddEven")
+    ord = students.filter(function(s){return lastDigit(s.id)%2===1}).concat(students.filter(function(s){return lastDigit(s.id)%2===0}));
+  else if (cfg.order === "evenOdd")
+    ord = students.filter(function(s){return lastDigit(s.id)%2===0}).concat(students.filter(function(s){return lastDigit(s.id)%2===1}));
+  else ord = students.slice();
+  var m = {}, len = Math.min(ord.length, f.length);
+  for (var i = 0; i < len; i++) m[f[i].n] = ord[i];
+  return { m: m, used: f.length, placed: len };
 }
+
 function parseFile(data) {
   try {
-    const wb = XLSX.read(data, {
-      type: "array"
-    });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
-      header: 1
-    });
-    let hi = -1,
-      ic = -1,
-      nc = -1;
-    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    var wb = XLSX.read(data, { type: "array" });
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    var hi = -1, ic = -1, nc = -1;
+    for (var i = 0; i < Math.min(rows.length, 10); i++) {
       if (!rows[i]) continue;
-      for (let j = 0; j < (rows[i].length || 0); j++) {
-        const v = String(rows[i][j] || "");
-        if (v === "学籍番号") {
-          hi = i;
-          ic = j;
-        }
+      for (var j = 0; j < (rows[i].length||0); j++) {
+        var v = String(rows[i][j]||"");
+        if (v === "学籍番号") { hi = i; ic = j; }
         if (v === "学生氏名") nc = j;
       }
       if (hi >= 0) break;
     }
-    if (hi < 0) return {
-      st: [],
-      inf: {}
-    };
-    const st = [];
-    for (let k = hi + 1; k < rows.length; k++) {
-      if (!rows[k] || !rows[k][ic]) continue;
-      const id = String(rows[k][ic]).trim();
-      const nm = nc >= 0 && rows[k][nc] ? String(rows[k][nc]).trim() : "";
-      if (id) st.push({
-        id,
-        name: nm
-      });
+    if (hi < 0) return { st: [], inf: {} };
+    var st = [];
+    for (var k = hi+1; k < rows.length; k++) {
+      if (!rows[k]||!rows[k][ic]) continue;
+      var id = String(rows[k][ic]).trim();
+      var nm = nc>=0&&rows[k][nc] ? String(rows[k][nc]).trim() : "";
+      if (id) st.push({ id: id, name: nm });
     }
-    const r1 = rows[1] || [];
-    return {
-      st,
-      inf: {
-        sub: r1[4] || "",
-        tea: r1[6] || ""
-      }
-    };
-  } catch (e) {
-    return {
-      st: [],
-      inf: {}
-    };
-  }
+    var r1 = rows[1]||[];
+    return { st: st, inf: { sub: r1[4]||"", tea: r1[6]||"" } };
+  } catch(e) { return { st: [], inf: {} }; }
 }
+
 function App() {
-  const [roomId, setRoomId] = useState("201");
-  const [students, setStudents] = useState([]);
-  const [info, setInfo] = useState({});
-  const [cfg, setCfg] = useState({
-    direction: "horizontal",
-    leftRight: "left",
-    order: "sequential",
-    colGap: 0,
-    rowGap: 0,
-    skipFront: 0,
-    skipBack: 0,
-    skipLeft: 0,
-    skipRight: 0
-  });
-  const [exportImg, setExportImg] = useState(null);
-  const [fileName, setFileName] = useState("");
-  const [excludeCenter, setExcludeCenter] = useState(false);
-  const svgRef = useRef(null);
-  const fileRef = useRef(null);
-  const room = ROOMS[roomId];
-  const secs = room.sections;
-  const tw = calcTW(room);
-  const th = calcTH(room);
-  const res = useMemo(() => {
-    if (!students.length) return {
-      m: {},
-      used: 0,
-      placed: 0
-    };
-    return doAssign(room, students, cfg, excludeCenter);
-  }, [students, cfg, roomId, excludeCenter]);
+  var _s = useState("201"), roomId = _s[0], setRoomId = _s[1];
+  var _st = useState([]), students = _st[0], setStudents = _st[1];
+  var _inf = useState({}), info = _inf[0], setInfo = _inf[1];
+  var _cfg = useState({
+    direction:"horizontal",leftRight:"left",order:"sequential",
+    colGap:0,rowGap:0,skipFront:0,skipBack:0,skipLeft:0,skipRight:0
+  }), cfg = _cfg[0], setCfg = _cfg[1];
+  var _exp = useState(null), exportImg = _exp[0], setExportImg = _exp[1];
+  var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
+  var svgRef = useRef(null), fileRef = useRef(null);
+
+  var room = ROOMS[roomId];
+  var layout = useMemo(function(){ return calcLayout(room); }, [roomId]);
+  var colXArr=layout.colXArr, colWArr=layout.colWArr, aisleAfter=layout.aisleAfter, tw=layout.tw, th=layout.th;
+  var res = useMemo(function(){
+    if (!students.length) return {m:{},used:0,placed:0};
+    return doAssign(room, students, cfg);
+  }, [students, cfg, roomId]);
+
   function onFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+    var file = e.target.files&&e.target.files[0]; if(!file) return;
     setFileName(file.name);
-    const rd = new FileReader();
-    rd.onload = ev => {
-      const r = parseFile(new Uint8Array(ev.target.result));
-      setStudents(r.st);
-      setInfo(r.inf);
-    };
+    var rd = new FileReader();
+    rd.onload = function(ev) { var r=parseFile(new Uint8Array(ev.target.result)); setStudents(r.st); setInfo(r.inf); };
     rd.readAsArrayBuffer(file);
   }
-  const up = (k, v) => setCfg(p => ({
-    ...p,
-    [k]: v
-  }));
+  function up(k,v) { setCfg(function(p){ var o={}; for(var x in p) o[x]=p[x]; o[k]=v; return o; }); }
   function save() {
-    const el = svgRef.current;
-    if (!el) return;
-    const xml = new XMLSerializer().serializeToString(el);
-    const svg64 = btoa(unescape(encodeURIComponent(xml)));
-    const img = new Image();
-    img.onload = () => {
-      const cv = document.createElement("canvas");
-      cv.width = tw * 2;
-      cv.height = th * 2;
-      const ctx = cv.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.scale(2, 2);
-      ctx.drawImage(img, 0, 0, tw, th);
-      setExportImg(cv.toDataURL("image/png"));
+    var el=svgRef.current; if(!el) return;
+    var xml=new XMLSerializer().serializeToString(el);
+    var svg64=btoa(unescape(encodeURIComponent(xml)));
+    var img=new Image();
+    img.onload=function(){
+      var cv=document.createElement("canvas"); cv.width=tw*2; cv.height=th*2;
+      var ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.scale(2,2); ctx.drawImage(img,0,0,tw,th); setExportImg(cv.toDataURL("image/png"));
     };
-    img.src = "data:image/svg+xml;base64," + svg64;
+    img.src="data:image/svg+xml;base64,"+svg64;
   }
-  function download() {
-    if (!exportImg) return;
-    const a = document.createElement("a");
-    a.href = exportImg;
-    a.download = "座席表_" + room.name + ".png";
-    a.click();
-  }
+  function download() { if(!exportImg)return; var a=document.createElement("a"); a.href=exportImg; a.download="座席表_"+room.name+".png"; a.click(); }
 
-  // Build SVG
-  const cells = [];
-  const ia = new Set(room.innerAisles || []);
-  const secBounds = new Set();
-  for (let si = 0; si < secs.length - 1; si++) secBounds.add(secs[si].e);
-  const allAisles = new Set([...ia, ...secBounds]);
-  const excSet = new Set();
-  if (excludeCenter && room.centerExclude) {
-    room.centerExclude.forEach(p => excSet.add(p[0] + "," + p[1]));
-  }
-  for (let r = 0; r < room.rows; r++) {
-    for (let c = 0; c < room.cols; c++) {
-      const sn = room.grid[r][c];
-      const x = colX(c, secs);
-      const y = rowYfn(r);
-      const isExcluded = excSet.has(r + "," + c);
-      if (sn !== null && sn > 0 && !isExcluded) {
-        const st = res.m[sn];
-        cells.push(/*#__PURE__*/React.createElement("g", {
-          key: "s" + sn
-        }, /*#__PURE__*/React.createElement("text", {
-          x: x + CW / 2,
-          y: y + 8,
-          textAnchor: "middle",
-          fontSize: "6",
-          fill: "#999"
-        }, sn), /*#__PURE__*/React.createElement("rect", {
-          x: x,
-          y: y + 10,
-          width: CW,
-          height: CH,
-          rx: "2",
-          fill: st ? "#FFFDE7" : "#fff",
-          stroke: st ? "#c5a000" : "#ccc",
-          strokeWidth: st ? 1.2 : 0.5
-        }), st && /*#__PURE__*/React.createElement("text", {
-          x: x + CW / 2,
-          y: y + 25,
-          textAnchor: "middle",
-          fontSize: "8",
-          fontWeight: "bold",
-          fill: "#1a237e"
-        }, st.id)));
-      } else if (isExcluded && sn !== null && sn > 0) {
-        cells.push(/*#__PURE__*/React.createElement("g", {
-          key: "x" + r + "_" + c
-        }, /*#__PURE__*/React.createElement("rect", {
-          x: x, y: y + 10, width: CW, height: CH, rx: "2",
-          fill: "#f0f0f0", stroke: "#ccc", strokeWidth: 0.5
-        }), /*#__PURE__*/React.createElement("line", {
-          x1: x + 2, y1: y + 14, x2: x + CW - 2, y2: y + CH + 6,
-          stroke: "#bbb", strokeWidth: 0.8
-        }), /*#__PURE__*/React.createElement("line", {
-          x1: x + CW - 2, y1: y + 14, x2: x + 2, y2: y + CH + 6,
-          stroke: "#bbb", strokeWidth: 0.8
-        })));
-      } else if (sn === 0) {
-        cells.push(/*#__PURE__*/React.createElement("rect", {
-          key: "d" + r + "_" + c,
-          x: x + 10,
-          y: y + 14,
-          width: CW - 20,
-          height: CH - 8,
-          rx: "2",
-          fill: "#e8eaf0",
-          stroke: "#d0d4de",
-          strokeWidth: 0.3
-        }));
+  // ===== SVG cells =====
+  var cells = [];
+  for (var r = 0; r < room.rows; r++) {
+    for (var c = 0; c < room.cols; c++) {
+      var sn = room.grid[r][c];
+      if (sn === null) continue;
+      var x = colXArr[c], w = colWArr[c], y = rowY(r);
+      if (sn > 0) {
+        var st = res.m[sn];
+        cells.push(ce("g",{key:"s"+sn},
+          ce("text",{x:x+w/2,y:y+8,textAnchor:"middle",fontSize:"6",fill:"#999"},sn),
+          ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
+            fill:st?"#FFFDE7":"#fff",stroke:st?"#c5a000":"#ccc",strokeWidth:st?1.2:0.5}),
+          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:"7",fontWeight:"bold",fill:"#1a237e"},st.id)
+        ));
       } else {
-        const nearL = c > 0 && room.grid[r][c - 1] !== null && !allAisles.has(c - 1);
-        const nearR = c < room.cols - 1 && room.grid[r][c + 1] !== null && !allAisles.has(c);
-        const near = nearL || nearR;
-        if (near) cells.push(/*#__PURE__*/React.createElement("rect", {
-          key: "e" + r + "_" + c,
-          x: x,
-          y: y + 10,
-          width: CW,
-          height: CH,
-          rx: "2",
-          fill: "#fafafe",
-          stroke: "#eee",
-          strokeWidth: 0.3,
-          strokeDasharray: "3,2"
-        }));
+        cells.push(ce("rect",{key:"g"+r+"_"+c,
+          x:x+1,y:y+13,width:w-2,height:CH-6,rx:"1",
+          fill:"#e0e3ea",stroke:"#ccd0d8",strokeWidth:0.3}));
       }
     }
   }
-  const midSec = secs[Math.floor(secs.length / 2)];
-  const pcx = (colX(midSec.s, secs) + colX(midSec.e, secs) + CW) / 2;
-  const rowLabels = [];
-  for (let ri = 0; ri < room.rows; ri++) {
-    const ry2 = rowYfn(ri);
-    rowLabels.push(/*#__PURE__*/React.createElement("text", {
-      key: "rl" + ri,
-      x: 12,
-      y: ry2 + 25,
-      textAnchor: "middle",
-      fontSize: "9",
-      fontWeight: "bold",
-      fill: "#1a237e"
-    }, ri + 1));
-    rowLabels.push(/*#__PURE__*/React.createElement("text", {
-      key: "rr" + ri,
-      x: tw - 12,
-      y: ry2 + 25,
-      textAnchor: "middle",
-      fontSize: "9",
-      fontWeight: "bold",
-      fill: "#1a237e"
-    }, ri + 1));
+  // Row labels (left/right margins)
+  var rowLabels = [];
+  for (r = 0; r < room.rows; r++) {
+    var y2 = rowY(r);
+    rowLabels.push(ce("text",{key:"rl"+r,x:10,y:y2+25,textAnchor:"middle",fontSize:"9",fontWeight:"bold",fill:"#1a237e"},r+1));
+    rowLabels.push(ce("text",{key:"rr"+r,x:tw-10,y:y2+25,textAnchor:"middle",fontSize:"9",fontWeight:"bold",fill:"#1a237e"},r+1));
   }
-  const aisleLabels = [];
-  for (let ar = 0; ar < room.rows; ar++) {
-    const ay = rowYfn(ar);
-    for (let ai = 0; ai < secs.length - 1; ai++) {
-      const ax = (colX(secs[ai].e, secs) + CW + colX(secs[ai + 1].s, secs)) / 2;
-      aisleLabels.push(/*#__PURE__*/React.createElement("text", {
-        key: "a" + ai + "_" + ar,
-        x: ax,
-        y: ay + 25,
-        textAnchor: "middle",
-        fontSize: "7",
-        fill: "#bbb"
-      }, ar + 1));
-    }
-    if (room.innerAisles) {
-      for (let ii = 0; ii < room.innerAisles.length; ii++) {
-        const ic = room.innerAisles[ii];
-        const ix = (colX(ic, secs) + CW + colX(ic + 1, secs)) / 2;
-        aisleLabels.push(/*#__PURE__*/React.createElement("text", {
-          key: "ia" + ii + "_" + ar,
-          x: ix,
-          y: ay + 25,
-          textAnchor: "middle",
-          fontSize: "7",
-          fill: "#bbb"
-        }, ar + 1));
-      }
+  // Aisle row numbers
+  var aisleLabels = [], aisleArr = Array.from(aisleAfter).sort(function(a,b){return a-b});
+  for (r = 0; r < room.rows; r++) {
+    var ya = rowY(r);
+    for (var ai = 0; ai < aisleArr.length; ai++) {
+      var a = aisleArr[ai];
+      var ax = colXArr[a] + colWArr[a] + AG/2;
+      aisleLabels.push(ce("text",{key:"a"+ai+"_"+r,x:ax,y:ya+25,textAnchor:"middle",fontSize:"7",fill:"#bbb"},r+1));
     }
   }
-  const cfgF = [["colGap", "列間隔"], ["rowGap", "行間隔"], ["skipFront", "前 skip"], ["skipBack", "後 skip"], ["skipLeft", "左 skip"], ["skipRight", "右 skip"]];
+  // Podium & section labels
+  var secs = room.sections;
+  var midSec = secs[Math.floor(secs.length/2)];
+  var pcx = (colXArr[midSec.s]+colXArr[midSec.e]+colWArr[midSec.e])/2;
+  var secLabels = secs.map(function(sec,si){
+    var sx = (colXArr[sec.s]+colXArr[sec.e]+colWArr[sec.e])/2;
+    return ce("text",{key:"sec"+si,x:sx,y:HDR-6,textAnchor:"middle",fontSize:"8",fill:"#666"},sec.name);
+  });
 
-  // Count odd/even for display
-  const oddCount = students.filter(s => lastDigit(s.id) % 2 === 1).length;
-  const evenCount = students.filter(s => lastDigit(s.id) % 2 === 0).length;
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "header"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 17,
-      fontWeight: 700
-    }
-  }, "\u5317\u9678\u5927\u5B66\u5EA7\u5E2D\u6307\u5B9A\u30B7\u30B9\u30C6\u30E0"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      opacity: 0.8
-    }
-  }, room.name, "\u6559\u5BA4\uFF08\u5B9A\u54E1", room.capacity, "\u540D\uFF09")), info.sub && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "right",
-      fontSize: 11
-    }
-  }, /*#__PURE__*/React.createElement("div", null, info.sub), /*#__PURE__*/React.createElement("div", null, info.tea))), /*#__PURE__*/React.createElement("div", {
-    className: "card"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    ref: fileRef,
-    type: "file",
-    accept: ".xlsx,.xls",
-    onChange: onFile,
-    style: {
-      display: "none"
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn-upload",
-    onClick: () => fileRef.current && fileRef.current.click(),
-    style: {
-      background: students.length > 0 ? "#e8f5e9" : "#e3f2fd",
-      color: students.length > 0 ? "#2e7d32" : "#1565c0",
-      border: students.length > 0 ? "2px solid #a5d6a7" : "2px dashed #90caf9"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 20
-    }
-  }, students.length > 0 ? "✅" : "📂"), students.length > 0 ? "ファイル変更" : "UNIPAファイルを選択"), students.length > 0 ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: "#333"
-    }
-  }, fileName), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "#2e7d32"
-    }
-  }, students.length, "\u540D\u8AAD\u8FBC\u6E08\uFF08\u5947\u6570\u672B\u5C3E:", oddCount, "\u540D / \u5076\u6570\u672B\u5C3E:", evenCount, "\u540D\uFF09")) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#888"
-    }
-  }, "UNIPA\u304B\u3089\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u305F\u5C65\u4FEE\u8005Excel\u30D5\u30A1\u30A4\u30EB\uFF08.xlsx\uFF09")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 10,
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      flexWrap: "wrap"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      fontWeight: 700,
-      color: "#1a237e"
-    }
-  }, "\u6559\u5BA4:"), ROOM_LIST.map(rid => {
-    const rm = ROOMS[rid];
-    const sel = rid === roomId;
-    return /*#__PURE__*/React.createElement("button", {
-      key: rid,
-      className: "btn-room " + (sel ? "active" : "inactive"),
-      onClick: () => {
-        setRoomId(rid);
-        setExportImg(null);
-      }
-    }, rm.name.replace(/\(.*\)/, ""), /*#__PURE__*/React.createElement("span", {
-      style: {fontSize: 9, opacity: 0.7, marginLeft: 3}
-    }, "(", rm.capacity, ")"));
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "ctrl-row"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    className: "ctrl-label"
-  }, "\u8A70\u3081\u65B9"), /*#__PURE__*/React.createElement("select", {
-    className: "ctrl-select",
-    value: cfg.direction,
-    onChange: e => up("direction", e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "horizontal"
-  }, "\u6A2A"), /*#__PURE__*/React.createElement("option", {
-    value: "vertical"
-  }, "\u7E26"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    className: "ctrl-label"
-  }, "\u5DE6\u53F3"), /*#__PURE__*/React.createElement("select", {
-    className: "ctrl-select",
-    value: cfg.leftRight,
-    onChange: e => up("leftRight", e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "left"
-  }, "\u5DE6\u304B\u3089"), /*#__PURE__*/React.createElement("option", {
-    value: "right"
-  }, "\u53F3\u304B\u3089"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    className: "ctrl-label"
-  }, "\u4E26\u3073\u65B9"), /*#__PURE__*/React.createElement("select", {
-    className: "ctrl-select",
-    value: cfg.order,
-    onChange: e => up("order", e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "sequential"
-  }, "\u9806\u756A\uFF08\u540D\u7C3F\u9806\uFF09"), /*#__PURE__*/React.createElement("option", {
-    value: "oddEven"
-  }, "\u5947\u6570\u2192\u5076\u6570"), /*#__PURE__*/React.createElement("option", {
-    value: "evenOdd"
-  }, "\u5076\u6570\u2192\u5947\u6570"))), cfgF.map(p => /*#__PURE__*/React.createElement("div", {
-    key: p[0]
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "ctrl-label"
-  }, p[1]), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    className: "ctrl-num",
-    min: 0,
-    max: 25,
-    value: cfg[p[0]],
-    onChange: e => up(p[0], parseInt(e.target.value) || 0)
-  }))), /*#__PURE__*/React.createElement("button", {
-    className: "btn-export",
-    onClick: save
-  }, "\uD83D\uDDBC\uFE0F \u753B\u50CF\u751F\u6210"), exportImg && /*#__PURE__*/React.createElement("button", {
-    className: "btn-export",
-    onClick: download,
-    style: {
-      background: "#2e7d32"
-    }
-  }, "\uD83D\uDCBE \u30C0\u30A6\u30F3\u30ED\u30FC\u30C9"), room.centerExclude && /*#__PURE__*/React.createElement("label", {
-    style: {fontSize: 12, display: "flex", alignItems: "center", gap: 5, height: 30, cursor: "pointer", userSelect: "none"}
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    checked: excludeCenter,
-    onChange: e => setExcludeCenter(e.target.checked),
-    style: {width: 16, height: 16}
-  }), "\u4E2D\u592E4\u5E2D\u9664\u5916\uFF08201, 202\uFF09")), students.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "stats"
-  }, /*#__PURE__*/React.createElement("span", null, "\u53D7\u8B1B\u8005: ", /*#__PURE__*/React.createElement("b", null, students.length)), /*#__PURE__*/React.createElement("span", null, "\u4F7F\u7528\u5E2D: ", /*#__PURE__*/React.createElement("b", null, res.used)), /*#__PURE__*/React.createElement("span", null, "\u914D\u7F6E\u6E08: ", /*#__PURE__*/React.createElement("b", null, res.placed)), students.length > res.used && /*#__PURE__*/React.createElement("span", {
-    className: "warn"
-  }, "\u26A0 ", students.length - res.used, "\u540D\u5206\u4E0D\u8DB3"), cfg.order !== "sequential" && /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: "#1565c0"
-    }
-  }, "\uFF08", cfg.order === "oddEven" ? "奇数末尾→偶数末尾" : "偶数末尾→奇数末尾", "\u306E\u9806\u3067\u914D\u7F6E\uFF09"))), exportImg && /*#__PURE__*/React.createElement("div", {
-    className: "card"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "#1a237e"
-    }
-  }, "\u751F\u6210\u753B\u50CF\uFF08\u53F3\u30AF\u30EA\u30C3\u30AF / \u9577\u62BC\u3057\u3067\u4FDD\u5B58\uFF09"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setExportImg(null),
-    style: {
-      background: "#eee",
-      border: "none",
-      borderRadius: 4,
-      padding: "3px 10px",
-      fontSize: 11,
-      cursor: "pointer"
-    }
-  }, "\u9589\u3058\u308B")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      border: "1px solid #ddd",
-      borderRadius: 6,
-      overflow: "auto",
-      maxHeight: 500
-    }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: exportImg,
-    alt: "\u5EA7\u5E2D\u8868",
-    style: {
-      width: "100%",
-      display: "block"
-    }
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "card",
-    style: {
-      padding: 8,
-      overflowX: "auto"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    ref: svgRef,
-    viewBox: "0 0 " + tw + " " + th,
-    width: tw,
-    height: th,
-    xmlns: "http://www.w3.org/2000/svg",
-    style: {
-      display: "block",
-      margin: "0 auto"
-    }
-  }, /*#__PURE__*/React.createElement("rect", {
-    width: tw,
-    height: th,
-    fill: "#fff"
-  }), /*#__PURE__*/React.createElement("text", {
-    x: tw - 8,
-    y: 14,
-    textAnchor: "end",
-    fontSize: "9",
-    fill: "#888"
-  }, "\u5B9A\u54E1 ", room.capacity, "\u540D"), /*#__PURE__*/React.createElement("rect", {
-    x: pcx - 40,
-    y: 3,
-    width: 80,
-    height: 18,
-    rx: 3,
-    fill: "#fff",
-    stroke: "#999",
-    strokeWidth: 0.8
-  }), /*#__PURE__*/React.createElement("text", {
-    x: pcx,
-    y: 15,
-    textAnchor: "middle",
-    fontSize: "10",
-    fontWeight: "bold",
-    fill: "#333"
-  }, room.podium || "教 卓"), rowLabels, cells, aisleLabels)), students.length > 0 && /*#__PURE__*/React.createElement("details", {
-    className: "card"
-  }, /*#__PURE__*/React.createElement("summary", {
-    style: {
-      fontSize: 12,
-      fontWeight: 600,
-      cursor: "pointer"
-    }
-  }, "\u540D\u7C3F\uFF08", students.length, "\u540D\uFF09"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 6,
-      columns: "220px 4",
-      fontSize: 11
-    }
-  }, students.map((s, i) => {
-    let found = null;
-    const keys = Object.keys(res.m);
-    for (let ki = 0; ki < keys.length; ki++) {
-      if (res.m[keys[ki]].id === s.id) {
-        found = keys[ki];
-        break;
-      }
-    }
-    const d = lastDigit(s.id);
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        padding: "1px 4px",
-        background: found ? "#f1f8e9" : "#fff3e0",
-        borderRadius: 2,
-        marginBottom: 1
-      }
-    }, /*#__PURE__*/React.createElement("b", null, s.id), " ", s.name, " ", /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#aaa",
-        fontSize: 9
-      }
-    }, "[", d % 2 === 1 ? "奇" : "偶", "]"), found && /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#888",
-        float: "right"
-      }
-    }, "\u5E2D", found));
-  }))));
+  var cfgF = [["colGap","列間隔"],["rowGap","行間隔"],["skipFront","前skip"],["skipBack","後skip"],["skipLeft","左skip"],["skipRight","右skip"]];
+  var oddC = students.filter(function(s){return lastDigit(s.id)%2===1}).length;
+  var evenC = students.length - oddC;
+
+  return ce("div",null,
+    ce("div",{className:"header"},
+      ce("div",null,
+        ce("div",{style:{fontSize:17,fontWeight:700}},"北陸大学座席指定システム"),
+        ce("div",{style:{fontSize:11,opacity:0.8}},room.name+"教室（定員"+room.capacity+"名）")),
+      info.sub&&ce("div",{style:{textAlign:"right",fontSize:11}},ce("div",null,info.sub),ce("div",null,info.tea))),
+    ce("div",{className:"card"},
+      ce("div",{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:12}},
+        ce("input",{ref:fileRef,type:"file",accept:".xlsx,.xls",onChange:onFile,style:{display:"none"}}),
+        ce("button",{className:"btn-upload",onClick:function(){fileRef.current&&fileRef.current.click()},
+          style:{background:students.length?"#e8f5e9":"#e3f2fd",color:students.length?"#2e7d32":"#1565c0",
+                 border:students.length?"2px solid #a5d6a7":"2px dashed #90caf9"}},
+          ce("span",{style:{fontSize:20}},students.length?"✅":"📂"),
+          students.length?"ファイル変更":"UNIPAファイルを選択"),
+        students.length?
+          ce("div",null,ce("div",{style:{fontSize:13,fontWeight:600,color:"#333"}},fileName),
+            ce("div",{style:{fontSize:11,color:"#2e7d32"}},students.length+"名読込済（奇数末尾:"+oddC+"名/偶数末尾:"+evenC+"名）")):
+          ce("div",{style:{fontSize:12,color:"#888"}},"UNIPAからダウンロードした履修者Excelファイル（.xlsx）")),
+      ce("div",{style:{marginTop:10,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+        ce("span",{style:{fontSize:12,fontWeight:700,color:"#1a237e"}},"教室:"),
+        ROOM_LIST.map(function(rid){
+          var rm=ROOMS[rid],sel=rid===roomId;
+          return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
+            onClick:function(){setRoomId(rid);setExportImg(null);}},
+            rm.name,ce("span",{style:{fontSize:9,opacity:0.7,marginLeft:3}},"("+rm.capacity+")"));
+        }))),
+    ce("div",{className:"card"},
+      ce("div",{className:"ctrl-row"},
+        ce("div",null,ce("span",{className:"ctrl-label"},"詰め方"),
+          ce("select",{className:"ctrl-select",value:cfg.direction,onChange:function(e){up("direction",e.target.value)}},
+            ce("option",{value:"horizontal"},"横"),ce("option",{value:"vertical"},"縦"))),
+        ce("div",null,ce("span",{className:"ctrl-label"},"左右"),
+          ce("select",{className:"ctrl-select",value:cfg.leftRight,onChange:function(e){up("leftRight",e.target.value)}},
+            ce("option",{value:"left"},"左から"),ce("option",{value:"right"},"右から"))),
+        ce("div",null,ce("span",{className:"ctrl-label"},"並び方"),
+          ce("select",{className:"ctrl-select",value:cfg.order,onChange:function(e){up("order",e.target.value)}},
+            ce("option",{value:"sequential"},"順番（名簿順）"),ce("option",{value:"oddEven"},"奇数→偶数"),ce("option",{value:"evenOdd"},"偶数→奇数"))),
+        cfgF.map(function(p){return ce("div",{key:p[0]},ce("span",{className:"ctrl-label"},p[1]),
+          ce("input",{type:"number",className:"ctrl-num",min:0,max:25,value:cfg[p[0]],
+            onChange:function(e){up(p[0],parseInt(e.target.value)||0)}}));}),
+        ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
+        exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
+      students.length>0&&ce("div",{className:"stats"},
+        ce("span",null,"受講者: ",ce("b",null,students.length)),
+        ce("span",null,"使用席: ",ce("b",null,res.used)),
+        ce("span",null,"配置済: ",ce("b",null,res.placed)),
+        students.length>res.used&&ce("span",{className:"warn"},"⚠ "+(students.length-res.used)+"名分不足"),
+        cfg.order!=="sequential"&&ce("span",{style:{color:"#1565c0"}},
+          "（"+(cfg.order==="oddEven"?"奇数末尾→偶数末尾":"偶数末尾→奇数末尾")+"の順で配置）"))),
+    exportImg&&ce("div",{className:"card"},
+      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+        ce("span",{style:{fontSize:13,fontWeight:700,color:"#1a237e"}},"生成画像（右クリック/長押しで保存）"),
+        ce("button",{onClick:function(){setExportImg(null)},style:{background:"#eee",border:"none",borderRadius:4,padding:"3px 10px",fontSize:11,cursor:"pointer"}},"閉じる")),
+      ce("div",{style:{border:"1px solid #ddd",borderRadius:6,overflow:"auto",maxHeight:500}},
+        ce("img",{src:exportImg,alt:"座席表",style:{width:"100%",display:"block"}}))),
+    ce("div",{className:"card",style:{padding:8,overflowX:"auto"}},
+      ce("svg",{ref:svgRef,viewBox:"0 0 "+tw+" "+th,width:tw,height:th,xmlns:"http://www.w3.org/2000/svg",style:{display:"block",margin:"0 auto"}},
+        ce("rect",{width:tw,height:th,fill:"#fff"}),
+        ce("text",{x:tw-8,y:14,textAnchor:"end",fontSize:"9",fill:"#888"},"定員 "+room.capacity+"名"),
+        ce("rect",{x:pcx-40,y:3,width:80,height:18,rx:3,fill:"#fff",stroke:"#999",strokeWidth:0.8}),
+        ce("text",{x:pcx,y:15,textAnchor:"middle",fontSize:"10",fontWeight:"bold",fill:"#333"},room.podium||"教 卓"),
+        secLabels,rowLabels,cells,aisleLabels)),
+    students.length>0&&ce("details",{className:"card"},
+      ce("summary",{style:{fontSize:12,fontWeight:600,cursor:"pointer"}},"名簿（"+students.length+"名）"),
+      ce("div",{style:{marginTop:6,columns:"220px 4",fontSize:11}},
+        students.map(function(s,i){
+          var found=null,keys=Object.keys(res.m);
+          for(var ki=0;ki<keys.length;ki++) if(res.m[keys[ki]].id===s.id){found=keys[ki];break;}
+          var d=lastDigit(s.id);
+          return ce("div",{key:i,style:{padding:"1px 4px",background:found?"#f1f8e9":"#fff3e0",borderRadius:2,marginBottom:1}},
+            ce("b",null,s.id)," ",s.name," ",
+            ce("span",{style:{color:"#aaa",fontSize:9}},"["+(d%2===1?"奇":"偶")+"]"),
+            found&&ce("span",{style:{color:"#888",float:"right"}},"席"+found));
+        })))
+  );
 }
-ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
-
+ReactDOM.createRoot(document.getElementById("root")).render(ce(App,null));
 </script>
 </body>
 </html>
