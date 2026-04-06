@@ -189,3 +189,22 @@ var ROOMS = {
   }
 };
 var ROOM_LIST = ["201", "202", "302", "302-I(40)", "302-I(35)", "302-II(40)", "302-II(35)", "402-I(40)", "402-I(35)", "402-II(40)", "402-II(35)", "404", "406", "431"];
+
+// ========== UIグループ定義 ==========
+// label: ドロップダウンに表示するグループ名
+// names: 同一レイアウトの教室名リスト
+// caps: 定員バリエーション
+var ROOM_GROUPS = [
+  { label: "201", names: ["201"], caps: [263] },
+  { label: "202", names: ["202"], caps: [166] },
+  { label: "302", names: ["302"], caps: [80] },
+  { label: "小教室", names: ["302-I","302-II","402-I","402-II"], caps: [35, 40] },
+  { label: "404 / 406", names: ["404","406"], caps: [120] },
+  { label: "431", names: ["431"], caps: [30] }
+];
+
+// グループ・教室名・定員からROOMSキーを導出
+function roomKey(name, cap, group) {
+  if (group.caps.length <= 1) return name;
+  return name + "(" + cap + ")";
+}
