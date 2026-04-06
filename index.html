@@ -42,23 +42,36 @@ const {
   useMemo
 } = React;
 const CW = 52,
+  GW = 16,
   CH = 22,
-  EG = 20,
+  EG = 2,
   SG = 24,
   PAD = 30,
   HDR = 46;
-function colX(c, secs) {
-  let g = 0;
-  for (let i = 0; i < secs.length - 1; i++) {
-    if (c > secs[i].e) g++;
+function colW(room, c) {
+  return (room.colTypes && room.colTypes[c] === "G") ? GW : CW;
+}
+function buildColX(room) {
+  const xs = [];
+  const ia = new Set(room.innerAisles || []);
+  const sb = new Set();
+  for (let i = 0; i < room.sections.length - 1; i++) sb.add(room.sections[i].e);
+  let x = PAD;
+  for (let c = 0; c < room.cols; c++) {
+    xs.push(x);
+    x += colW(room, c) + EG;
+    if (sb.has(c)) x += SG;
+    else if (ia.has(c)) x += SG;
   }
-  return PAD + c * (CW + EG) + g * SG;
+  xs.push(x);
+  return xs;
 }
 function rowYfn(r) {
   return HDR + 6 + r * (CH * 2 + 4);
 }
 function calcTW(room) {
-  return colX(room.cols - 1, room.sections) + CW + PAD;
+  const xs = buildColX(room);
+  return xs[room.cols] + PAD;
 }
 function calcTH(room) {
   return rowYfn(room.rows - 1) + CH * 2 + PAD;
@@ -196,6 +209,7 @@ function App() {
   const fileRef = useRef(null);
   const room = ROOMS[roomId];
   const secs = room.sections;
+  const colXArr = buildColX(room);
   const tw = calcTW(room);
   const th = calcTH(room);
   const res = useMemo(() => {
@@ -262,7 +276,8 @@ function App() {
   for (let r = 0; r < room.rows; r++) {
     for (let c = 0; c < room.cols; c++) {
       const sn = room.grid[r][c];
-      const x = colX(c, secs);
+      const x = colXArr[c];
+      const cw = colW(room, c);
       const y = rowYfn(r);
       const isExcluded = excSet.has(r + "," + c);
       if (sn !== null && sn > 0 && !isExcluded) {
@@ -270,7 +285,7 @@ function App() {
         cells.push(/*#__PURE__*/React.createElement("g", {
           key: "s" + sn
         }, /*#__PURE__*/React.createElement("text", {
-          x: x + CW / 2,
+          x: x + cw / 2,
           y: y + 8,
           textAnchor: "middle",
           fontSize: "6",
@@ -278,62 +293,44 @@ function App() {
         }, sn), /*#__PURE__*/React.createElement("rect", {
           x: x,
           y: y + 10,
-          width: CW,
+          width: cw,
           height: CH,
           rx: "2",
           fill: st ? "#FFFDE7" : "#fff",
           stroke: st ? "#c5a000" : "#ccc",
           strokeWidth: st ? 1.2 : 0.5
         }), st && /*#__PURE__*/React.createElement("text", {
-          x: x + CW / 2,
+          x: x + cw / 2,
           y: y + 25,
           textAnchor: "middle",
           fontSize: "8",
           fontWeight: "bold",
           fill: "#1a237e"
         }, st.id)));
-        let inSame = false;
-        for (let si = 0; si < secs.length; si++) {
-          if (c >= secs[si].s && c < secs[si].e) {
-            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null && !ia.has(c)) inSame = true;
-            break;
-          }
-        }
-        if (inSame) cells.push(/*#__PURE__*/React.createElement("rect", {
-          key: "g" + r + "_" + c,
-          x: x + CW + 4,
-          y: y + 13,
-          width: EG - 8,
-          height: CH - 6,
-          rx: "1",
-          fill: "#f0f0f5",
-          stroke: "#ddd",
-          strokeWidth: 0.3
-        }));
       } else if (isExcluded && sn !== null && sn > 0) {
         cells.push(/*#__PURE__*/React.createElement("g", {
           key: "x" + r + "_" + c
         }, /*#__PURE__*/React.createElement("rect", {
-          x: x, y: y + 10, width: CW, height: CH, rx: "2",
+          x: x, y: y + 10, width: cw, height: CH, rx: "2",
           fill: "#f0f0f0", stroke: "#ccc", strokeWidth: 0.5
         }), /*#__PURE__*/React.createElement("line", {
-          x1: x + 4, y1: y + 14, x2: x + CW - 4, y2: y + CH + 6,
+          x1: x + 2, y1: y + 14, x2: x + cw - 2, y2: y + CH + 6,
           stroke: "#bbb", strokeWidth: 0.8
         }), /*#__PURE__*/React.createElement("line", {
-          x1: x + CW - 4, y1: y + 14, x2: x + 4, y2: y + CH + 6,
+          x1: x + cw - 2, y1: y + 14, x2: x + 2, y2: y + CH + 6,
           stroke: "#bbb", strokeWidth: 0.8
         })));
       } else if (sn === 0) {
         cells.push(/*#__PURE__*/React.createElement("rect", {
           key: "d" + r + "_" + c,
           x: x,
-          y: y + 10,
-          width: CW,
-          height: CH,
-          rx: "2",
-          fill: "#fff",
-          stroke: "#ccc",
-          strokeWidth: 0.5
+          y: y + 12,
+          width: cw,
+          height: CH - 4,
+          rx: "1",
+          fill: "#f4f4f8",
+          stroke: "#e0e0e8",
+          strokeWidth: 0.3
         }));
       } else {
         const nearL = c > 0 && room.grid[r][c - 1] !== null && !allAisles.has(c - 1);
@@ -343,7 +340,7 @@ function App() {
           key: "e" + r + "_" + c,
           x: x,
           y: y + 10,
-          width: CW,
+          width: cw,
           height: CH,
           rx: "2",
           fill: "#fafafe",
@@ -355,7 +352,7 @@ function App() {
     }
   }
   const midSec = secs[Math.floor(secs.length / 2)];
-  const pcx = (colX(midSec.s, secs) + colX(midSec.e, secs) + CW) / 2;
+  const pcx = (colXArr[midSec.s] + colXArr[midSec.e] + colW(room, midSec.e)) / 2;
   const rowLabels = [];
   for (let ri = 0; ri < room.rows; ri++) {
     const ry2 = rowYfn(ri);
@@ -382,7 +379,7 @@ function App() {
   for (let ar = 0; ar < room.rows; ar++) {
     const ay = rowYfn(ar);
     for (let ai = 0; ai < secs.length - 1; ai++) {
-      const ax = (colX(secs[ai].e, secs) + CW + colX(secs[ai + 1].s, secs)) / 2;
+      const ax = (colXArr[secs[ai].e] + colW(room, secs[ai].e) + colXArr[secs[ai + 1].s]) / 2;
       aisleLabels.push(/*#__PURE__*/React.createElement("text", {
         key: "a" + ai + "_" + ar,
         x: ax,
@@ -395,7 +392,7 @@ function App() {
     if (room.innerAisles) {
       for (let ii = 0; ii < room.innerAisles.length; ii++) {
         const ic = room.innerAisles[ii];
-        const ix = (colX(ic, secs) + CW + colX(ic + 1, secs)) / 2;
+        const ix = (colXArr[ic] + colW(room, ic) + colXArr[ic + 1]) / 2;
         aisleLabels.push(/*#__PURE__*/React.createElement("text", {
           key: "ia" + ii + "_" + ar,
           x: ix,
