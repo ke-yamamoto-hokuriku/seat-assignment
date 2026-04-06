@@ -221,15 +221,14 @@ function generateRoom(roomId) {
       var tables = room.tables[r][b], chairCount = 0;
       for (var t = 0; t < tables.length; t++) chairCount += tables[t];
       var offset = 0;
-      if (room.type === "fan" && b < midBlock) {
-        offset = maxBlockW[b] - chairCount;
-        offset = offset - (offset % 2); // 偶数に丸めて座席/ギャップのパターンを統一
+      if (room.type === "fan" && b % 2 === 0) {
+        offset = maxBlockW[b] - chairCount; // 偶数ブロック=右寄せ（通路側）
       }
       var pos = 0;
       for (var t = 0; t < tables.length; t++) {
         for (var i = 0; i < tables[t]; i++) {
           var ci = blockStart[b] + offset + pos;
-          var leanRight = (b < midBlock);
+          var leanRight = (b % 2 === 0); // 偶数ブロック: S開始を右端に
           row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type, leanRight)) ? -1 : 0;
           pos++;
         }
