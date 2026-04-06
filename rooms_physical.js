@@ -171,11 +171,11 @@ function seatsPerTable(n) {
 }
 
 // テーブル内の位置iが座席かギャップかを判定
-// 3脚: S,G,S  4脚: S,G,G,S  5脚: S,G,S,G,S  6脚: S,G,S,G,S,G
-function isSeatPos(i, tableSize) {
+// 長方形の4人がけ: S,G,G,S（両端） / 扇型: 常に交互 S,G,S,G
+function isSeatPos(i, tableSize, roomType) {
   if (tableSize <= 1) return true;
-  if (tableSize === 4) return (i === 0 || i === 3);  // 両端に座る
-  return (i % 2 === 0);  // 奇数・偶数テーブルは交互
+  if (roomType === "rect" && tableSize === 4) return (i === 0 || i === 3);
+  return (i % 2 === 0);
 }
 
 function totalChairs(roomId) {
@@ -235,7 +235,7 @@ function generateRoom(roomId) {
       for (var t = 0; t < tables.length; t++) {
         for (var i = 0; i < tables[t]; i++) {
           var ci = blockStart[b] + offset + pos;
-          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t])) ? -1 : 0;
+          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type)) ? -1 : 0;
           pos++;
         }
       }
