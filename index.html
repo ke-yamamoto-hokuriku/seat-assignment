@@ -43,7 +43,7 @@ const {
 } = React;
 const CW = 52,
   CH = 22,
-  EG = 2,
+  EG = 20,
   SG = 24,
   PAD = 30,
   HDR = 46;
@@ -292,6 +292,24 @@ function App() {
           fontWeight: "bold",
           fill: "#1a237e"
         }, st.id)));
+        let inSame = false;
+        for (let si = 0; si < secs.length; si++) {
+          if (c >= secs[si].s && c < secs[si].e) {
+            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null && !ia.has(c)) inSame = true;
+            break;
+          }
+        }
+        if (inSame) cells.push(/*#__PURE__*/React.createElement("rect", {
+          key: "g" + r + "_" + c,
+          x: x + CW + 4,
+          y: y + 13,
+          width: EG - 8,
+          height: CH - 6,
+          rx: "1",
+          fill: "#f0f0f5",
+          stroke: "#ddd",
+          strokeWidth: 0.3
+        }));
       } else if (isExcluded && sn !== null && sn > 0) {
         cells.push(/*#__PURE__*/React.createElement("g", {
           key: "x" + r + "_" + c
