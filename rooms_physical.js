@@ -187,87 +187,75 @@ function totalChairs(roomId) {
   return total;
 }
 
-function maxCapacity(roomId) {
-  var room = PHYSICAL[roomId], total = 0;
-  for (var r = 0; r < room.rows; r++)
-    for (var b = 0; b < room.tables[r].length; b++)
-      for (var t = 0; t < room.tables[r][b].length; t++)
-        total += seatsPerTable(room.tables[r][b][t]);
-  return total;
-}
 
-// ========== グリッド生成 ==========
-// グリッド値: 1+＝座席, 0＝ギャップ椅子（空席）, null＝机なし
-// colTypes: 各列が座席列('S')かギャップ列('G')か → UI側で描画幅を変える
+// ========== グリッド生成（コンパクト版）==========
+// 座席位置のみのグリッドを生成（ギャップ椅子はUIのEGスペースで表現）
+// grid値: 1+=座席番号, null=座席なし
 
 function generateRoom(roomId) {
   var room = PHYSICAL[roomId];
   var nBlocks = room.tables[0].length;
 
-  // 1) 各ブロックの最大幅（物理椅子数）
-  var maxBlockW = [];
+  // 1) 各ブロックの最大使用席数
+  var maxBlockSeats = [];
   for (var b = 0; b < nBlocks; b++) {
-    var maxW = 0;
+    var maxS = 0;
     for (var r = 0; r < room.rows; r++) {
-      var w = 0;
-      for (var t = 0; t < room.tables[r][b].length; t++) w += room.tables[r][b][t];
-      if (w > maxW) maxW = w;
+      var s = 0;
+      for (var t = 0; t < room.tables[r][b].length; t++)
+        s += seatsPerTable(room.tables[r][b][t]);
+      if (s > maxS) maxS = s;
     }
-    maxBlockW.push(maxW);
+    maxBlockSeats.push(maxS);
   }
 
   // 2) 総列数とブロック開始列
   var totalCols = 0, blockStart = [];
-  for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockW[b]; }
+  for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockSeats[b]; }
 
-  // 3) 全物理椅子をグリッドに配置
+  // 3) グリッド生成（座席位置のみ、扇型は右寄せ/左寄せ）
   var midBlock = nBlocks / 2;
   var grid = [];
   for (var r = 0; r < room.rows; r++) {
     var row = [];
     for (var c = 0; c < totalCols; c++) row.push(null);
     for (var b = 0; b < nBlocks; b++) {
-      var tables = room.tables[r][b], chairCount = 0;
-      for (var t = 0; t < tables.length; t++) chairCount += tables[t];
+      var tables = room.tables[r][b];
+      var nSeatsInBlock = 0;
+      for (var t = 0; t < tables.length; t++)
+        nSeatsInBlock += seatsPerTable(tables[t]);
       var offset = 0;
-      if (room.type === "fan" && b < midBlock) offset = maxBlockW[b] - chairCount;
-      var pos = 0;
+      if (room.type === "fan" && b < midBlock)
+        offset = maxBlockSeats[b] - nSeatsInBlock;
+      var seatPos = 0;
       for (var t = 0; t < tables.length; t++) {
-        for (var i = 0; i < tables[t]; i++) {
-          var ci = blockStart[b] + offset + pos;
-          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type)) ? -1 : 0;
-          pos++;
+        var nSeats = seatsPerTable(tables[t]);
+        for (var i = 0; i < nSeats; i++) {
+          row[blockStart[b] + offset + seatPos] = 0;
+          seatPos++;
         }
       }
     }
     grid.push(row);
   }
 
-  // 4) 列タイプ判定: 座席(S) or ギャップ(G)
-  var colTypes = [];
-  for (var c = 0; c < totalCols; c++) {
-    var hasSeat = false;
-    for (var r = 0; r < room.rows; r++) { if (grid[r][c] === -1) { hasSeat = true; break; } }
-    colTypes.push(hasSeat ? "S" : "G");
-  }
-
-  // 5) 座席番号付与（列優先・上から下）
+  // 4) 座席番号付与（列優先・上から下）
   var seatNum = 1;
   for (var c = 0; c < totalCols; c++)
     for (var r = 0; r < room.rows; r++)
-      if (grid[r][c] === -1) grid[r][c] = seatNum++;
+      if (grid[r][c] === 0) grid[r][c] = seatNum++;
 
-  // 6) sections, innerAisles
+  // 5) sections, innerAisles
   var sections = [], innerAisles = [];
   for (var si = 0; si < room.sections.length; si++) {
     var sec = room.sections[si];
     var s0 = blockStart[sec.blocks[0] - 1];
     var bLast = sec.blocks[sec.blocks.length - 1] - 1;
-    var sEnd = blockStart[bLast] + maxBlockW[bLast] - 1;
+    var sEnd = blockStart[bLast] + maxBlockSeats[bLast] - 1;
     sections.push({ name: sec.name, s: s0, e: sEnd });
     for (var bi = 0; bi < sec.blocks.length - 1; bi++) {
       var bx = sec.blocks[bi] - 1;
-      innerAisles.push(blockStart[bx] + maxBlockW[bx] - 1);
+      innerAisles.push(blockStart[bx] + maxBlockSeats[bx] - 1);
     }
   }
 
@@ -276,7 +264,6 @@ function generateRoom(roomId) {
     rows: room.rows, cols: totalCols,
     podium: room.podium, sections: sections,
     innerAisles: innerAisles.length > 0 ? innerAisles : undefined,
-    colTypes: colTypes,
     grid: grid
   };
 }

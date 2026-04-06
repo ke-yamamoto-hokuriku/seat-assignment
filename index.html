@@ -41,33 +41,24 @@ const {
   useRef,
   useMemo
 } = React;
-const CW = 36,
+const CW = 52,
   CH = 22,
-  EG = 2,
-  SG = 20,
+  EG = 20,
+  SG = 24,
   PAD = 30,
   HDR = 46;
-function buildColX(room) {
-  const xs = [];
-  const ia = new Set(room.innerAisles || []);
-  const sb = new Set();
-  for (let i = 0; i < room.sections.length - 1; i++) sb.add(room.sections[i].e);
-  let x = PAD;
-  for (let c = 0; c < room.cols; c++) {
-    xs.push(x);
-    x += CW + EG;
-    if (sb.has(c)) x += SG;
-    else if (ia.has(c)) x += SG;
+function colX(c, secs) {
+  let g = 0;
+  for (let i = 0; i < secs.length - 1; i++) {
+    if (c > secs[i].e) g++;
   }
-  xs.push(x);
-  return xs;
+  return PAD + c * (CW + EG) + g * SG;
 }
 function rowYfn(r) {
   return HDR + 6 + r * (CH * 2 + 4);
 }
 function calcTW(room) {
-  const xs = buildColX(room);
-  return xs[room.cols] + PAD;
+  return colX(room.cols - 1, room.sections) + CW + PAD;
 }
 function calcTH(room) {
   return rowYfn(room.rows - 1) + CH * 2 + PAD;
@@ -205,7 +196,6 @@ function App() {
   const fileRef = useRef(null);
   const room = ROOMS[roomId];
   const secs = room.sections;
-  const colXArr = buildColX(room);
   const tw = calcTW(room);
   const th = calcTH(room);
   const res = useMemo(() => {
@@ -272,7 +262,7 @@ function App() {
   for (let r = 0; r < room.rows; r++) {
     for (let c = 0; c < room.cols; c++) {
       const sn = room.grid[r][c];
-      const x = colXArr[c];
+      const x = colX(c, secs);
       const y = rowYfn(r);
       const isExcluded = excSet.has(r + "," + c);
       if (sn !== null && sn > 0 && !isExcluded) {
@@ -302,6 +292,24 @@ function App() {
           fontWeight: "bold",
           fill: "#1a237e"
         }, st.id)));
+        let inSame = false;
+        for (let si = 0; si < secs.length; si++) {
+          if (c >= secs[si].s && c < secs[si].e) {
+            if (c + 1 <= secs[si].e && room.grid[r][c + 1] !== null && !ia.has(c)) inSame = true;
+            break;
+          }
+        }
+        if (inSame) cells.push(/*#__PURE__*/React.createElement("rect", {
+          key: "g" + r + "_" + c,
+          x: x + CW + 2,
+          y: y + 12,
+          width: EG - 4,
+          height: CH - 4,
+          rx: "1",
+          fill: "#f4f4f8",
+          stroke: "#e8e8ee",
+          strokeWidth: 0.3
+        }));
       } else if (isExcluded && sn !== null && sn > 0) {
         cells.push(/*#__PURE__*/React.createElement("g", {
           key: "x" + r + "_" + c
@@ -318,13 +326,13 @@ function App() {
       } else if (sn === 0) {
         cells.push(/*#__PURE__*/React.createElement("rect", {
           key: "d" + r + "_" + c,
-          x: x + 8,
-          y: y + 13,
-          width: CW - 16,
-          height: CH - 6,
+          x: x + 16,
+          y: y + 14,
+          width: CW - 32,
+          height: CH - 8,
           rx: "2",
-          fill: "#eef0f4",
-          stroke: "#dde",
+          fill: "#e8eaf0",
+          stroke: "#d0d4de",
           strokeWidth: 0.3
         }));
       } else {
@@ -347,7 +355,7 @@ function App() {
     }
   }
   const midSec = secs[Math.floor(secs.length / 2)];
-  const pcx = (colXArr[midSec.s] + colXArr[midSec.e] + CW) / 2;
+  const pcx = (colX(midSec.s, secs) + colX(midSec.e, secs) + CW) / 2;
   const rowLabels = [];
   for (let ri = 0; ri < room.rows; ri++) {
     const ry2 = rowYfn(ri);
@@ -374,7 +382,7 @@ function App() {
   for (let ar = 0; ar < room.rows; ar++) {
     const ay = rowYfn(ar);
     for (let ai = 0; ai < secs.length - 1; ai++) {
-      const ax = (colXArr[secs[ai].e] + CW + colXArr[secs[ai + 1].s]) / 2;
+      const ax = (colX(secs[ai].e, secs) + CW + colX(secs[ai + 1].s, secs)) / 2;
       aisleLabels.push(/*#__PURE__*/React.createElement("text", {
         key: "a" + ai + "_" + ar,
         x: ax,
@@ -387,7 +395,7 @@ function App() {
     if (room.innerAisles) {
       for (let ii = 0; ii < room.innerAisles.length; ii++) {
         const ic = room.innerAisles[ii];
-        const ix = (colXArr[ic] + CW + colXArr[ic + 1]) / 2;
+        const ix = (colX(ic, secs) + CW + colX(ic + 1, secs)) / 2;
         aisleLabels.push(/*#__PURE__*/React.createElement("text", {
           key: "ia" + ii + "_" + ar,
           x: ix,
