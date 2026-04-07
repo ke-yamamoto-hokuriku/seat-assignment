@@ -28,12 +28,55 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.1　2026.04.06</div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.2　2026.04.07</div>
 <script src="rooms_physical.js"></script>
 <script>
 var ROOM_LIST = ["201","202","302","302-I","302-II","402","402-I","402-II","404","406","431"];
 var ROOMS = {};
 ROOM_LIST.forEach(function(id) { ROOMS[id] = generateRoom(id); });
+// 201教室: 1ブロック最大5席ルール適用（11脚ブロックの端席をギャップに）
+(function() {
+  var rid = "201", maxPerBlock = 5;
+  var r = ROOMS[rid], phys = PHYSICAL[rid];
+  var nBlocks = phys.tables[0].length;
+  // ブロック境界を再計算
+  var maxBlockW = [], blockStart = [], totalCols = 0;
+  for (var b = 0; b < nBlocks; b++) {
+    var maxW = 0;
+    for (var row = 0; row < phys.rows; row++) {
+      var w = 0;
+      for (var t = 0; t < phys.tables[row][b].length; t++) w += phys.tables[row][b][t];
+      if (w > maxW) maxW = w;
+    }
+    maxBlockW.push(maxW);
+  }
+  for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockW[b]; }
+  // 各行・各ブロックで座席数が上限超過なら、寄せ方向の反対側からギャップに変換
+  var changed = false;
+  for (var row = 0; row < r.rows; row++) {
+    for (var b = 0; b < nBlocks; b++) {
+      var seats = [];
+      for (var c = blockStart[b]; c < blockStart[b] + maxBlockW[b]; c++)
+        if (r.grid[row][c] > 0) seats.push(c);
+      if (seats.length > maxPerBlock) {
+        var leanRight = (b % 2 === 0);
+        var excess = seats.length - maxPerBlock;
+        for (var i = 0; i < excess; i++) {
+          var idx = leanRight ? i : seats.length - 1 - i; // 寄せの反対側から除去
+          r.grid[row][seats[idx]] = 0;
+          changed = true;
+        }
+      }
+    }
+  }
+  if (changed) {
+    var n = 1;
+    for (var c = 0; c < r.cols; c++)
+      for (var row = 0; row < r.rows; row++)
+        if (r.grid[row][c] > 0) r.grid[row][c] = n++;
+    r.capacity = n - 1;
+  }
+})();
 
 var R = React, ce = R.createElement;
 var useState = R.useState, useRef = R.useRef, useMemo = R.useMemo;
