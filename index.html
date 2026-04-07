@@ -253,6 +253,7 @@ function App() {
   var _exp = useState(null), exportImg = _exp[0], setExportImg = _exp[1];
   var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
   var _exc = useState(false), excludeCenter = _exc[0], setExcludeCenter = _exc[1];
+  var _disp = useState("id"), dispMode = _disp[0], setDispMode = _disp[1];
   var _mpb = useState(function(){ var o={}; ALL_ROOMS.forEach(function(id){o[id]=DEFAULT_MAX[id];}); return o; }), maxPerBlock = _mpb[0], setMaxPerBlock = _mpb[1];
   var svgRef = useRef(null), fileRef = useRef(null);
 
@@ -295,7 +296,7 @@ function App() {
     };
     img.src="data:image/svg+xml;base64,"+svg64;
   }
-  function download() { if(!exportImg)return; var a=document.createElement("a"); a.href=exportImg; a.download="座席表_"+room.name+".png"; a.click(); }
+  function download() { if(!exportImg)return; var a=document.createElement("a"); a.href=exportImg; a.download="座席表_"+room.name+(dispMode==="name"?"_氏名":"")+".png"; a.click(); }
 
   // ===== SVG cells =====
   var cells = [];
@@ -315,7 +316,7 @@ function App() {
           ce("text",{x:x+w/2,y:y+8,textAnchor:"middle",fontSize:"6",fill:"#999"},sn),
           ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
             fill:st?"#FFFDE7":"#fff",stroke:st?"#c5a000":"#ccc",strokeWidth:st?1.2:0.5}),
-          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:"7",fontWeight:"bold",fill:"#1a237e"},st.id)
+          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"5.5":"7",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
         ));
       } else if (sn > 0 && isExcluded) {
         cells.push(ce("g",{key:"x"+r+"_"+c},
@@ -426,6 +427,9 @@ function App() {
         room.centerExclude&&ce("label",{style:{fontSize:12,display:"flex",alignItems:"center",gap:5,height:30,cursor:"pointer",userSelect:"none"}},
           ce("input",{type:"checkbox",checked:excludeCenter,onChange:function(e){setExcludeCenter(e.target.checked)},style:{width:16,height:16}}),
           "中央4席除外"),
+        ce("div",null,ce("span",{className:"ctrl-label"},"表示"),
+          ce("select",{className:"ctrl-select",value:dispMode,onChange:function(e){setDispMode(e.target.value);setExportImg(null);}},
+            ce("option",{value:"id"},"学籍番号"),ce("option",{value:"name"},"学生氏名"))),
         ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
         exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
       students.length>0&&ce("div",{className:"stats"},
