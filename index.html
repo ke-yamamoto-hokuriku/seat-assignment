@@ -225,7 +225,7 @@ function parseFile(data) {
       for (var j = 0; j < (rows[i].length||0); j++) {
         var v = String(rows[i][j]||"");
         if (v === "学籍番号") { hi = i; ic = j; }
-        if (v === "学生氏名") nc = j;
+        if (v === "学生氏名" || v === "氏名" || v === "名前" || v === "学生名") nc = j;
       }
       if (hi >= 0) break;
     }
