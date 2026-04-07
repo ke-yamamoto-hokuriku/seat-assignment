@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 北陸大学座席指定システム  Ver.2.2  2026.04.07 -->
+<!-- 北陸大学座席指定システム  Ver.2.3  2026.04.07 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -29,41 +29,47 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.2　2026.04.07</div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.3　2026.04.07</div>
 <script src="rooms_physical.js"></script>
 <script>
 var ROOM_LIST = ["201","202","302","302-I","302-II","402","402-I","402-II","404","406","431"];
-var ROOMS = {};
-ROOM_LIST.forEach(function(id) { ROOMS[id] = generateRoom(id); });
-// 201教室: 1ブロック最大5席ルール適用（11脚ブロックの端席をギャップに）
-(function() {
-  var rid = "201", maxPerBlock = 5;
-  var r = ROOMS[rid], phys = PHYSICAL[rid];
-  var nBlocks = phys.tables[0].length;
-  // ブロック境界を再計算
+var ROOM_GROUPS = [
+  { label:"201", rooms:["201"] },
+  { label:"202", rooms:["202"] },
+  { label:"302", rooms:["302","302-I","302-II"] },
+  { label:"402", rooms:["402","402-I","402-II"] },
+  { label:"404/406", rooms:["404","406"] },
+  { label:"431", rooms:["431"] }
+];
+
+// ブロック内最大席数を適用してROOMを再生成
+function applyMaxPerBlock(rid, maxPB) {
+  var r = generateRoom(rid);
+  if (maxPB <= 0) return r;
+  var src = resolveSource(rid);
+  var nBlocks = src.tables[0].length;
   var maxBlockW = [], blockStart = [], totalCols = 0;
   for (var b = 0; b < nBlocks; b++) {
     var maxW = 0;
-    for (var row = 0; row < phys.rows; row++) {
+    for (var row = 0; row < src.rows; row++) {
       var w = 0;
-      for (var t = 0; t < phys.tables[row][b].length; t++) w += phys.tables[row][b][t];
+      for (var t = 0; t < src.tables[row][b].length; t++) w += src.tables[row][b][t];
       if (w > maxW) maxW = w;
     }
     maxBlockW.push(maxW);
   }
   for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockW[b]; }
-  // 各行・各ブロックで座席数が上限超過なら、寄せ方向の反対側からギャップに変換
   var changed = false;
   for (var row = 0; row < r.rows; row++) {
     for (var b = 0; b < nBlocks; b++) {
       var seats = [];
       for (var c = blockStart[b]; c < blockStart[b] + maxBlockW[b]; c++)
         if (r.grid[row][c] > 0) seats.push(c);
-      if (seats.length > maxPerBlock) {
+      if (seats.length > maxPB) {
         var leanRight = (b % 2 === 0);
-        var excess = seats.length - maxPerBlock;
+        var excess = seats.length - maxPB;
         for (var i = 0; i < excess; i++) {
-          var idx = leanRight ? i : seats.length - 1 - i; // 寄せの反対側から除去
+          var idx = leanRight ? i : seats.length - 1 - i;
           r.grid[row][seats[idx]] = 0;
           changed = true;
         }
@@ -77,7 +83,44 @@ ROOM_LIST.forEach(function(id) { ROOMS[id] = generateRoom(id); });
         if (r.grid[row][c] > 0) r.grid[row][c] = n++;
     r.capacity = n - 1;
   }
-})();
+  return r;
+}
+
+// 各教室のデフォルト最大席数を計算
+function calcDefaultMax(rid) {
+  var r = generateRoom(rid);
+  var src = resolveSource(rid);
+  var nBlocks = src.tables[0].length;
+  var maxBlockW = [], blockStart = [], totalCols = 0;
+  for (var b = 0; b < nBlocks; b++) {
+    var maxW = 0;
+    for (var row = 0; row < src.rows; row++) {
+      var w = 0;
+      for (var t = 0; t < src.tables[row][b].length; t++) w += src.tables[row][b][t];
+      if (w > maxW) maxW = w;
+    }
+    maxBlockW.push(maxW);
+  }
+  for (var b = 0; b < nBlocks; b++) { blockStart.push(totalCols); totalCols += maxBlockW[b]; }
+  var maxSeats = 0;
+  for (var row = 0; row < r.rows; row++) {
+    for (var b = 0; b < nBlocks; b++) {
+      var cnt = 0;
+      for (var c = blockStart[b]; c < blockStart[b] + maxBlockW[b]; c++)
+        if (r.grid[row][c] > 0) cnt++;
+      if (cnt > maxSeats) maxSeats = cnt;
+    }
+  }
+  return maxSeats;
+}
+
+var DEFAULT_MAX = {};
+ROOM_LIST.forEach(function(id) { DEFAULT_MAX[id] = calcDefaultMax(id); });
+// 201教室: 1ブロック最大5席ルールをデフォルトに
+DEFAULT_MAX["201"] = 5;
+
+var ROOMS = {};
+ROOM_LIST.forEach(function(id) { ROOMS[id] = applyMaxPerBlock(id, DEFAULT_MAX[id]); });
 
 var R = React, ce = R.createElement;
 var useState = R.useState, useRef = R.useRef, useMemo = R.useMemo;
@@ -190,15 +233,27 @@ function App() {
   var _exp = useState(null), exportImg = _exp[0], setExportImg = _exp[1];
   var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
   var _exc = useState(false), excludeCenter = _exc[0], setExcludeCenter = _exc[1];
+  var _mpb = useState(function(){ var o={}; ROOM_LIST.forEach(function(id){o[id]=DEFAULT_MAX[id];}); return o; }), maxPerBlock = _mpb[0], setMaxPerBlock = _mpb[1];
   var svgRef = useRef(null), fileRef = useRef(null);
 
-  var room = ROOMS[roomId];
-  var layout = useMemo(function(){ return calcLayout(room); }, [roomId]);
+  var roomCaps = useMemo(function(){
+    var caps = {};
+    ROOM_LIST.forEach(function(rid){
+      var m = maxPerBlock[rid] || DEFAULT_MAX[rid];
+      if (m === DEFAULT_MAX[rid]) { caps[rid] = ROOMS[rid].capacity; }
+      else { caps[rid] = applyMaxPerBlock(rid, m).capacity; }
+    });
+    return caps;
+  }, [maxPerBlock]);
+
+  var curMax = maxPerBlock[roomId] || DEFAULT_MAX[roomId];
+  var room = useMemo(function(){ return applyMaxPerBlock(roomId, curMax); }, [roomId, curMax]);
+  var layout = useMemo(function(){ return calcLayout(room); }, [roomId, curMax]);
   var colXArr=layout.colXArr, colWArr=layout.colWArr, aisleAfter=layout.aisleAfter, tw=layout.tw, th=layout.th;
   var res = useMemo(function(){
     if (!students.length) return {m:{},used:0,placed:0};
     return doAssign(room, students, cfg, excludeCenter);
-  }, [students, cfg, roomId, excludeCenter]);
+  }, [students, cfg, roomId, excludeCenter, curMax]);
 
   function onFile(e) {
     var file = e.target.files&&e.target.files[0]; if(!file) return;
@@ -310,14 +365,22 @@ function App() {
           ce("div",null,ce("div",{style:{fontSize:13,fontWeight:600,color:"#333"}},fileName),
             ce("div",{style:{fontSize:11,color:"#2e7d32"}},students.length+"名読込済（奇数末尾:"+oddC+"名/偶数末尾:"+evenC+"名）")):
           ce("div",{style:{fontSize:12,color:"#888"}},"UNIPAからダウンロードした履修者Excelファイル（.xlsx）")),
-      ce("div",{style:{marginTop:10,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
-        ce("span",{style:{fontSize:12,fontWeight:700,color:"#1a237e"}},"教室:"),
-        ROOM_LIST.map(function(rid){
-          var rm=ROOMS[rid],sel=rid===roomId;
-          return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
-            onClick:function(){setRoomId(rid);setExportImg(null);}},
-            rm.name,ce("span",{style:{fontSize:9,opacity:0.7,marginLeft:3}},"("+rm.capacity+")"));
-        }))),
+      ce("div",{style:{marginTop:10}},
+        ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+          ce("span",{style:{fontSize:12,fontWeight:700,color:"#1a237e"}},"教室:")),
+        ce("div",{style:{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}},
+          ROOM_GROUPS.map(function(g,gi){
+            var btns = g.rooms.map(function(rid){
+              var cap=roomCaps[rid],sel=rid===roomId;
+              var nm = PHYSICAL[rid].name;
+              var label = nm.replace(/教室/,"");
+              return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
+                onClick:function(){setRoomId(rid);setExportImg(null);}},
+                label,ce("span",{style:{fontSize:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
+            });
+            if(gi < ROOM_GROUPS.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
+            return btns;
+          })))),
     ce("div",{className:"card"},
       ce("div",{className:"ctrl-row"},
         ce("div",null,ce("span",{className:"ctrl-label"},"詰め方"),
@@ -332,11 +395,17 @@ function App() {
         cfgF.map(function(p){return ce("div",{key:p[0]},ce("span",{className:"ctrl-label"},p[1]),
           ce("input",{type:"number",className:"ctrl-num",min:0,max:25,value:cfg[p[0]],
             onChange:function(e){up(p[0],parseInt(e.target.value)||0)}}));}),
-        ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
-        exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード"),
+        ce("div",null,ce("span",{className:"ctrl-label"},"ブロック内最大席数"),
+          ce("div",{style:{display:"flex",alignItems:"center",gap:4}},
+            ce("input",{type:"number",className:"ctrl-num",min:1,max:20,value:curMax,
+              onChange:function(e){var v=parseInt(e.target.value)||1;setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=v;return o;});setExportImg(null);}}),
+            curMax !== DEFAULT_MAX[roomId] && ce("button",{style:{fontSize:9,background:"#eee",border:"1px solid #ccc",borderRadius:4,padding:"1px 6px",cursor:"pointer",lineHeight:"1.4"},
+              onClick:function(){setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=DEFAULT_MAX[roomId];return o;});setExportImg(null);}},"↩"))),
         room.centerExclude&&ce("label",{style:{fontSize:12,display:"flex",alignItems:"center",gap:5,height:30,cursor:"pointer",userSelect:"none"}},
           ce("input",{type:"checkbox",checked:excludeCenter,onChange:function(e){setExcludeCenter(e.target.checked)},style:{width:16,height:16}}),
-          "中央4席除外")),
+          "中央4席除外"),
+        ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
+        exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
       students.length>0&&ce("div",{className:"stats"},
         ce("span",null,"受講者: ",ce("b",null,students.length)),
         ce("span",null,"使用席: ",ce("b",null,res.used)),
