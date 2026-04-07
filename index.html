@@ -32,15 +32,35 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 <div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.3　2026.04.07</div>
 <script src="rooms_physical.js"></script>
 <script>
-var ROOM_LIST = ["201","202","302","302-I","302-II","402","402-I","402-II","404","406","431"];
-var ROOM_GROUPS = [
-  { label:"201", rooms:["201"] },
-  { label:"202", rooms:["202"] },
-  { label:"302", rooms:["302","302-I","302-II"] },
-  { label:"402", rooms:["402","402-I","402-II"] },
-  { label:"404/406", rooms:["404","406"] },
-  { label:"431", rooms:["431"] }
-];
+// PHYSICALから自動生成
+var ROOM_LIST = Object.keys(PHYSICAL).filter(function(id) { var r=PHYSICAL[id]; return !r.parent && !r.sameAs; });
+// パーティション子・sameAs子もリストに追加（generateRoom用）
+var ALL_ROOMS = Object.keys(PHYSICAL).filter(function(id) { return PHYSICAL[id].tables; });
+
+// 同型教室(sameAs)子・パーティション子の収集
+var SAMEAS_CHILDREN = {}, PARTITION_CHILDREN = {};
+Object.keys(PHYSICAL).forEach(function(id) {
+  var r = PHYSICAL[id];
+  if (r.sameAs) { if (!SAMEAS_CHILDREN[r.sameAs]) SAMEAS_CHILDREN[r.sameAs]=[]; SAMEAS_CHILDREN[r.sameAs].push(id); }
+  if (r.parent) { if (!PARTITION_CHILDREN[r.parent]) PARTITION_CHILDREN[r.parent]=[]; PARTITION_CHILDREN[r.parent].push(id); }
+});
+
+// resolveSource: 物理データを持つ教室を返す
+function resolveSource(rid) { return PHYSICAL[rid]; }
+
+// ROOM_GROUPS自動生成: 親教室 + sameAs子をグループ化、パーティション子はI/IIサブボタン
+var ROOM_GROUPS = ROOM_LIST.map(function(rid) {
+  var rooms = [rid];
+  var kids = PARTITION_CHILDREN[rid];
+  if (kids) kids.forEach(function(k) { rooms.push(k); });
+  var sames = SAMEAS_CHILDREN[rid];
+  if (sames) sames.forEach(function(sid) {
+    rooms.push(sid);
+    var skids = PARTITION_CHILDREN[sid];
+    if (skids) skids.forEach(function(k) { rooms.push(k); });
+  });
+  return { label: rid, rooms: rooms };
+});
 
 // ブロック内最大席数を適用してROOMを再生成
 function applyMaxPerBlock(rid, maxPB) {
@@ -115,12 +135,12 @@ function calcDefaultMax(rid) {
 }
 
 var DEFAULT_MAX = {};
-ROOM_LIST.forEach(function(id) { DEFAULT_MAX[id] = calcDefaultMax(id); });
+ALL_ROOMS.forEach(function(id) { DEFAULT_MAX[id] = calcDefaultMax(id); });
 // 201教室: 1ブロック最大5席ルールをデフォルトに
 DEFAULT_MAX["201"] = 5;
 
 var ROOMS = {};
-ROOM_LIST.forEach(function(id) { ROOMS[id] = applyMaxPerBlock(id, DEFAULT_MAX[id]); });
+ALL_ROOMS.forEach(function(id) { ROOMS[id] = applyMaxPerBlock(id, DEFAULT_MAX[id]); });
 
 var R = React, ce = R.createElement;
 var useState = R.useState, useRef = R.useRef, useMemo = R.useMemo;
@@ -233,12 +253,12 @@ function App() {
   var _exp = useState(null), exportImg = _exp[0], setExportImg = _exp[1];
   var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
   var _exc = useState(false), excludeCenter = _exc[0], setExcludeCenter = _exc[1];
-  var _mpb = useState(function(){ var o={}; ROOM_LIST.forEach(function(id){o[id]=DEFAULT_MAX[id];}); return o; }), maxPerBlock = _mpb[0], setMaxPerBlock = _mpb[1];
+  var _mpb = useState(function(){ var o={}; ALL_ROOMS.forEach(function(id){o[id]=DEFAULT_MAX[id];}); return o; }), maxPerBlock = _mpb[0], setMaxPerBlock = _mpb[1];
   var svgRef = useRef(null), fileRef = useRef(null);
 
   var roomCaps = useMemo(function(){
     var caps = {};
-    ROOM_LIST.forEach(function(rid){
+    ALL_ROOMS.forEach(function(rid){
       var m = maxPerBlock[rid] || DEFAULT_MAX[rid];
       if (m === DEFAULT_MAX[rid]) { caps[rid] = ROOMS[rid].capacity; }
       else { caps[rid] = applyMaxPerBlock(rid, m).capacity; }
@@ -372,11 +392,13 @@ function App() {
           ROOM_GROUPS.map(function(g,gi){
             var btns = g.rooms.map(function(rid){
               var cap=roomCaps[rid],sel=rid===roomId;
-              var nm = PHYSICAL[rid].name;
-              var label = nm.replace(/教室/,"");
+              var ph=PHYSICAL[rid],nm=ph.name;
+              var label = ph.parent ? (ph.partitionHalf==="front"?"I":"II") : nm.replace(/教室/,"");
+              var isPartBtn = !!ph.parent;
               return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
+                style:isPartBtn?{fontSize:11,padding:"4px 8px"}:{},
                 onClick:function(){setRoomId(rid);setExportImg(null);}},
-                label,ce("span",{style:{fontSize:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
+                label,ce("span",{style:{fontSize:isPartBtn?8:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
             });
             if(gi < ROOM_GROUPS.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
             return btns;
