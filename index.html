@@ -263,6 +263,7 @@ function App() {
   var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
   var _exc = useState(false), excludeCenter = _exc[0], setExcludeCenter = _exc[1];
   var _disp = useState("id"), dispMode = _disp[0], setDispMode = _disp[1];
+  var _help = useState(false), showHelp = _help[0], setShowHelp = _help[1];
   var _mpb = useState(function(){ var o={}; ALL_ROOMS.forEach(function(id){o[id]=DEFAULT_MAX[id];}); return o; }), maxPerBlock = _mpb[0], setMaxPerBlock = _mpb[1];
   var svgRef = useRef(null), fileRef = useRef(null);
 
@@ -270,8 +271,7 @@ function App() {
     var caps = {};
     ALL_ROOMS.forEach(function(rid){
       var m = maxPerBlock[rid] || DEFAULT_MAX[rid];
-      if (m === DEFAULT_MAX[rid]) { caps[rid] = ROOMS[rid].capacity; }
-      else { caps[rid] = applyMaxPerBlock(rid, m).capacity; }
+      caps[rid] = applyMaxPerBlock(rid, m).capacity;
     });
     return caps;
   }, [maxPerBlock]);
@@ -335,7 +335,7 @@ function App() {
         ));
       } else {
         cells.push(ce("rect",{key:"g"+r+"_"+c,
-          x:x+1,y:y+13,width:w-2,height:CH-6,rx:"1",
+          x:x+(w-GW)/2+1,y:y+13,width:GW-2,height:CH-6,rx:"1",
           fill:"#e0e3ea",stroke:"#ccd0d8",strokeWidth:0.3}));
       }
     }
@@ -382,7 +382,9 @@ function App() {
       ce("div",null,
         ce("div",{style:{fontSize:17,fontWeight:700}},"北陸大学座席指定システム"),
         ce("div",{style:{fontSize:11,opacity:0.8}},room.name+"教室（定員"+room.capacity+"名）")),
-      info.sub&&ce("div",{style:{textAlign:"right",fontSize:11}},ce("div",null,info.sub),ce("div",null,info.tea))),
+      ce("div",{style:{display:"flex",alignItems:"center",gap:10}},
+        info.sub&&ce("div",{style:{textAlign:"right",fontSize:11}},ce("div",null,info.sub),ce("div",null,info.tea)),
+        ce("button",{onClick:function(){setShowHelp(true)},style:{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:"50%",width:30,height:30,fontSize:15,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},"?"))),
     ce("div",{className:"card"},
       ce("div",{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:12}},
         ce("input",{ref:fileRef,type:"file",accept:".xlsx,.xls",onChange:onFile,style:{display:"none"}}),
@@ -476,7 +478,52 @@ function App() {
             ce("b",null,s.id)," ",s.name," ",
             ce("span",{style:{color:"#aaa",fontSize:9}},"["+(d%2===1?"奇":"偶")+"]"),
             found&&ce("span",{style:{color:"#888",float:"right"}},"席"+found));
-        })))
+        }))),
+    showHelp&&ce("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200},onClick:function(){setShowHelp(false)}},
+      ce("div",{style:{background:"#fff",borderRadius:12,padding:24,maxWidth:640,maxHeight:"85vh",overflow:"auto",boxShadow:"0 8px 30px rgba(0,0,0,.3)",margin:16},onClick:function(e){e.stopPropagation()}},
+        ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+          ce("div",{style:{fontSize:18,fontWeight:800,color:"#1a237e"}},"使い方ガイド"),
+          ce("button",{onClick:function(){setShowHelp(false)},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#999"}},"×")),
+
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6,marginTop:12}},"1. ファイルを読み込む"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:12,lineHeight:1.6}},"UNIPAからダウンロードした履修者Excelファイル（.xlsx）を選択します。「学籍番号」列と「名前」列を自動検出します。"),
+
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"2. 教室を選択する"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:12,lineHeight:1.6}},"棟ごとにグループ化された教室ボタンから使用する教室を選択します。パーティション教室（302, 402）は全体・I（前半）・II（後半）を選べます。"),
+
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"3. 配置を調整する"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:4,lineHeight:1.6}},"各設定の意味:"),
+        ce("table",{style:{fontSize:11,borderCollapse:"collapse",width:"100%",marginBottom:12}},
+          ce("tbody",null,
+            [["詰め方","横（行を先に埋める）/ 縦（列を先に埋める）"],
+             ["左右","左から詰める / 右から詰める"],
+             ["並び方","名簿順 / 逆順 / 奇数末尾→偶数末尾 / 偶数末尾→奇数末尾"],
+             ["列間隔・行間隔","使用する列・行の間隔（0=詰め、1=1つ飛ばし）"],
+             ["前/後/左/右 skip","端から使用しない行・列の数"],
+             ["ブロック内最大席数","1ブロックあたりの最大座席数を制限"],
+             ["中央4席除外","201・202教室の中央の狭い席を使わない"],
+             ["表示","座席表に学籍番号 or 学生氏名を表示"]].map(function(r,i){
+              return ce("tr",{key:i,style:{borderBottom:"1px solid #eee"}},
+                ce("td",{style:{padding:"4px 8px",fontWeight:600,color:"#333",whiteSpace:"nowrap",verticalAlign:"top"}},r[0]),
+                ce("td",{style:{padding:"4px 8px",color:"#555"}},r[1]));
+            }))),
+
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"4. 画像を生成・保存する"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:16,lineHeight:1.6}},"「画像生成」ボタンで座席表のPNG画像を作成します。「ダウンロード」ボタンまたは画像を右クリック/長押しで保存できます。"),
+
+        ce("div",{style:{background:"#f5f5f5",borderRadius:8,padding:12,marginBottom:12}},
+          ce("div",{style:{fontSize:13,fontWeight:700,color:"#333",marginBottom:6}},"座席配置の考え方"),
+          ce("div",{style:{fontSize:11,color:"#555",lineHeight:1.7}},
+            "試験時の座席配置には以下のルールが適用されています:",
+            ce("br"),ce("br"),
+            ce("b",null,"① 1席空け"),": テーブル内で最低1椅子空けて、隣同士にならないように配置します。",
+            ce("br"),ce("br"),
+            ce("b",null,"② 縦列の整列（最優先）"),": 前の行と同じ列位置に座席を揃えます。前列の答案が見えにくくなり、学生が自分の席を見つけやすくなります。",
+            ce("br"),ce("br"),
+            ce("b",null,"③ 通路側寄せ"),": 座席を通路側に配置し、空き椅子を壁側に寄せます。試験時の答案配布や机間巡視がしやすくなります。")),
+
+        ce("div",{style:{textAlign:"center",marginTop:12}},
+          ce("button",{onClick:function(){setShowHelp(false)},style:{background:"#1a237e",color:"#fff",border:"none",borderRadius:8,padding:"8px 24px",fontSize:13,fontWeight:600,cursor:"pointer"}},"閉じる"))))
   );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(ce(App,null));
