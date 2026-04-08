@@ -56,6 +56,36 @@ var PHYSICAL = {
     ]
   },
 
+  "301F": {
+    name: "301F", podium: "教 卓", type: "rect", rows: 18,
+    building: "太陽が丘１号棟",
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
+      [[2],[6],[2]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]],
+      [[4],[6],[4]]
+    ]
+  },
+
   "302": {
     name: "302", podium: "教 卓", type: "rect", rows: 10,
     partition: 5,
@@ -75,6 +105,79 @@ var PHYSICAL = {
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]]
+    ]
+  },
+
+  "302-I": { name: "302-I", podium: "教 卓", type: "rect", rows: 5, parent: "302", partitionHalf: "front",
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]]
+    ]
+  },
+
+  "302-II": { name: "302-II", podium: "教 卓", type: "rect", rows: 5, parent: "302", partitionHalf: "back",
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]]
+    ]
+  },
+
+  "402": {
+    name: "402", podium: "教 卓", type: "rect", rows: 10,
+    sameAs: "302",
+    partition: 5,
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]]
+    ]
+  },
+
+  "311": {
+    name: "311", podium: "教 卓", type: "rect", rows: 9,
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]],
+      [[3],[3],[3]]
     ]
   },
 
@@ -141,10 +244,7 @@ var PHYSICAL = {
     ]
   },
 
-  "402": {
-    name: "402", podium: "教 卓", type: "rect", rows: 10,
-    sameAs: "302",
-    partition: 5,
+  "402-I": { name: "402-I", podium: "教 卓", type: "rect", rows: 5, parent: "402", partitionHalf: "front",
     sections: [
       { name: "左", blocks: [1] },
       { name: "中央", blocks: [2] },
@@ -155,7 +255,17 @@ var PHYSICAL = {
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
+      [[3],[3,3],[3]]
+    ]
+  },
+
+  "402-II": { name: "402-II", podium: "教 卓", type: "rect", rows: 5, parent: "402", partitionHalf: "back",
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
@@ -166,6 +276,38 @@ var PHYSICAL = {
 
   "404": {
     name: "404", podium: "教 卓", type: "rect", rows: 20,
+    sections: [
+      { name: "左", blocks: [1] },
+      { name: "中央", blocks: [2] },
+      { name: "右", blocks: [3] }
+    ],
+    tables: [
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]],
+      [[3],[4],[3]]
+    ]
+  },
+
+  "406": {
+    name: "406", podium: "教 卓", type: "rect", rows: 20,
+    sameAs: "404",
     sections: [
       { name: "左", blocks: [1] },
       { name: "中央", blocks: [2] },
@@ -222,38 +364,6 @@ var PHYSICAL = {
     ]
   },
 
-  "406": {
-    name: "406", podium: "教 卓", type: "rect", rows: 20,
-    sameAs: "404",
-    sections: [
-      { name: "左", blocks: [1] },
-      { name: "中央", blocks: [2] },
-      { name: "右", blocks: [3] }
-    ],
-    tables: [
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]],
-      [[3],[4],[3]]
-    ]
-  },
-
   "431": {
     name: "431", podium: "教 卓", type: "individual", rows: 8,
     sections: [
@@ -272,86 +382,6 @@ var PHYSICAL = {
       [[1],[1],[1],[1]],
       [[0],[0],[1],[1]]
     ]
-  },
-
-  "302-I": { name: "302-I", podium: "教 卓", type: "rect", rows: 5, parent: "302", partitionHalf: "front",
-    sections: [
-      { name: "左", blocks: [1] },
-      { name: "中央", blocks: [2] },
-      { name: "右", blocks: [3] }
-    ],
-    tables: [
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]]
-    ]
-  },
-
-  "302-II": { name: "302-II", podium: "教 卓", type: "rect", rows: 5, parent: "302", partitionHalf: "back",
-    sections: [
-      { name: "左", blocks: [1] },
-      { name: "中央", blocks: [2] },
-      { name: "右", blocks: [3] }
-    ],
-    tables: [
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]]
-    ]
-  },
-
-  "402-I": { name: "402-I", podium: "教 卓", type: "rect", rows: 5, parent: "402", partitionHalf: "front",
-    sections: [
-      { name: "左", blocks: [1] },
-      { name: "中央", blocks: [2] },
-      { name: "右", blocks: [3] }
-    ],
-    tables: [
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]]
-    ]
-  },
-
-  "402-II": { name: "402-II", podium: "教 卓", type: "rect", rows: 5, parent: "402", partitionHalf: "back",
-    sections: [
-      { name: "左", blocks: [1] },
-      { name: "中央", blocks: [2] },
-      { name: "右", blocks: [3] }
-    ],
-    tables: [
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]],
-      [[3],[3,3],[3]]
-    ]
-  },
-
-  "311": {
-    name: "311", podium: "教 卓", type: "rect", rows: 9,
-    sections: [
-      { name: "左", blocks: [1] },
-      { name: "中央", blocks: [2] },
-      { name: "右", blocks: [3] }
-    ],
-    tables: [
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]],
-      [[3],[3],[3]]
-    ]
   }
 };
 
@@ -363,9 +393,13 @@ function seatsPerTable(n) {
   return Math.floor((n + 1) / 2);
 }
 
-function isSeatPos(i, tableSize, roomType, leanRight) {
+function isSeatPos(i, tableSize, roomType, leanRight, bothEdges) {
   if (tableSize <= 1) return true;
   if (roomType === "rect" && tableSize === 4) return (i === 0 || i === 3);
+  // 両側通路ブロック（rect中央）: 両端を座席にし、中は左寄せ
+  if (bothEdges && roomType === "rect" && tableSize % 2 === 0) {
+    return (i % 2 === 0 && i !== tableSize - 2) || i === tableSize - 1;
+  }
   if (leanRight) return ((tableSize - 1 - i) % 2 === 0);
   return (i % 2 === 0);
 }
@@ -409,13 +443,18 @@ function generateRoom(roomId) {
       var offset = 0;
       if (room.type === "fan" && b % 2 === 0) {
         offset = maxBlockW[b] - chairCount;
+      } else if (room.type === "rect" && chairCount < maxBlockW[b] && b < nBlocks / 2) {
+        // rect教室: 左半分のブロックで椅子数が少ない行は中央寄せ（右寄せ）
+        offset = maxBlockW[b] - chairCount;
       }
       var pos = 0;
       for (var t = 0; t < tables.length; t++) {
         for (var i = 0; i < tables[t]; i++) {
           var ci = blockStart[b] + offset + pos;
           var leanRight = (b % 2 === 0);
-          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type, leanRight)) ? -1 : 0;
+          if (room.type === "rect") leanRight = (b < nBlocks / 2);
+          var bothEdges = (room.type === "rect" && b > 0 && b < nBlocks - 1);
+          row[ci] = (room.type === "individual" || isSeatPos(i, tables[t], room.type, leanRight, bothEdges)) ? -1 : 0;
           pos++;
         }
       }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 北陸大学座席指定システム  Ver.2.3  2026.04.07 -->
+<!-- 北陸大学座席指定システム  Ver.2.4  2026.04.08 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -29,7 +29,7 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.3　2026.04.07</div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.4　2026.04.08</div>
 <script src="rooms_physical.js"></script>
 <script>
 // PHYSICALから自動生成
@@ -49,6 +49,7 @@ Object.keys(PHYSICAL).forEach(function(id) {
 function resolveSource(rid) { return PHYSICAL[rid]; }
 
 // ROOM_GROUPS自動生成: 親教室 + sameAs子をグループ化、パーティション子はI/IIサブボタン
+var DEFAULT_BUILDING = "太陽が丘２号棟";
 var ROOM_GROUPS = ROOM_LIST.map(function(rid) {
   var rooms = [rid];
   var kids = PARTITION_CHILDREN[rid];
@@ -59,8 +60,16 @@ var ROOM_GROUPS = ROOM_LIST.map(function(rid) {
     var skids = PARTITION_CHILDREN[sid];
     if (skids) skids.forEach(function(k) { rooms.push(k); });
   });
-  return { label: rid, rooms: rooms };
+  return { label: rid, rooms: rooms, building: PHYSICAL[rid].building || DEFAULT_BUILDING };
 });
+// 棟別にグループ化
+var BUILDING_GROUPS = {};
+ROOM_GROUPS.forEach(function(g) {
+  if (!BUILDING_GROUPS[g.building]) BUILDING_GROUPS[g.building] = [];
+  BUILDING_GROUPS[g.building].push(g);
+});
+var BUILDING_ORDER = ["太陽が丘１号棟","太陽が丘２号棟","薬学部キャンパス"];
+BUILDING_ORDER.forEach(function(b){ if(!BUILDING_GROUPS[b]) BUILDING_GROUPS[b]=[]; });
 
 // ブロック内最大席数を適用してROOMを再生成
 function applyMaxPerBlock(rid, maxPB) {
@@ -316,7 +325,7 @@ function App() {
           ce("text",{x:x+w/2,y:y+8,textAnchor:"middle",fontSize:"6",fill:"#999"},sn),
           ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
             fill:st?"#FFFDE7":"#fff",stroke:st?"#c5a000":"#ccc",strokeWidth:st?1.2:0.5}),
-          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"5.5":"7",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
+          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
         ));
       } else if (sn > 0 && isExcluded) {
         cells.push(ce("g",{key:"x"+r+"_"+c},
@@ -387,23 +396,26 @@ function App() {
             ce("div",{style:{fontSize:11,color:"#2e7d32"}},students.length+"名読込済（奇数末尾:"+oddC+"名/偶数末尾:"+evenC+"名）")):
           ce("div",{style:{fontSize:12,color:"#888"}},"UNIPAからダウンロードした履修者Excelファイル（.xlsx）")),
       ce("div",{style:{marginTop:10}},
-        ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
-          ce("span",{style:{fontSize:12,fontWeight:700,color:"#1a237e"}},"教室:")),
-        ce("div",{style:{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}},
-          ROOM_GROUPS.map(function(g,gi){
-            var btns = g.rooms.map(function(rid){
-              var cap=roomCaps[rid],sel=rid===roomId;
-              var ph=PHYSICAL[rid],nm=ph.name;
-              var label = ph.parent ? (ph.partitionHalf==="front"?"I":"II") : nm.replace(/教室/,"");
-              var isPartBtn = !!ph.parent;
-              return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
-                style:isPartBtn?{fontSize:11,padding:"4px 8px"}:{},
-                onClick:function(){setRoomId(rid);setExportImg(null);}},
-                label,ce("span",{style:{fontSize:isPartBtn?8:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
-            });
-            if(gi < ROOM_GROUPS.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
-            return btns;
-          })))),
+        BUILDING_ORDER.map(function(bldg){
+          var groups = BUILDING_GROUPS[bldg];
+          return ce("div",{key:bldg,style:{marginBottom:6}},
+            ce("div",{style:{fontSize:10,fontWeight:700,color:"#666",marginBottom:3}},bldg),
+            ce("div",{style:{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}},
+              groups.length>0?groups.map(function(g,gi){
+                var btns = g.rooms.map(function(rid){
+                  var cap=roomCaps[rid],sel=rid===roomId;
+                  var ph=PHYSICAL[rid],nm=ph.name;
+                  var label = ph.parent ? (ph.partitionHalf==="front"?"I":"II") : nm.replace(/教室/,"");
+                  var isPartBtn = !!ph.parent;
+                  return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
+                    style:isPartBtn?{fontSize:11,padding:"4px 8px"}:{},
+                    onClick:function(){setRoomId(rid);setExportImg(null);}},
+                    label,ce("span",{style:{fontSize:isPartBtn?8:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
+                });
+                if(gi < groups.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
+                return btns;
+              }):ce("span",{style:{fontSize:11,color:"#aaa"}},"（教室未登録）")));
+        }))),
     ce("div",{className:"card"},
       ce("div",{className:"ctrl-row"},
         ce("div",null,ce("span",{className:"ctrl-label"},"詰め方"),
