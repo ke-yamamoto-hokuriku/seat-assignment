@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 北陸大学座席指定システム  Ver.2.4  2026.04.08 -->
+<!-- 北陸大学座席指定システム  Ver.3.0  2026.04.09 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -25,11 +25,25 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 .stats{margin-top:6px;font-size:11px;color:#666;display:flex;gap:14px;flex-wrap:wrap}
 .stats b{color:#333}
 .warn{color:#c62828;font-weight:600}
+.swap-badge{display:inline-block;background:#e8eaf6;color:#283593;border-radius:4px;padding:1px 6px;font-size:10px;margin:1px 2px;cursor:pointer}
+.swap-badge:hover{background:#c5cae9}
+.swap-hint{background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:6px 12px;font-size:12px;color:#e65100;margin-top:6px;display:flex;align-items:center;gap:8px}
 </style>
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.4　2026.04.08</div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.3.0　2026.04.09</div>
+<details style="max-width:720px;margin:0 auto 16px;font-size:10px;color:#aaa">
+<summary style="cursor:pointer;text-align:center;padding:4px">バージョン履歴</summary>
+<div style="padding:8px 16px;line-height:1.8;text-align:left">
+<b>Ver.3.0</b> (2026.04.09) — 座席の手動入れ替え/移動、詰め直し、確定、無理に詰め込む（ギャップ席へのオーバーフロー配置）<br>
+<b>Ver.2.4</b> (2026.04.08) — 棟別グループ表示、学籍番号/学生氏名切り替え、rect教室の通路側寄せ改善、ヘルプボタン追加<br>
+<b>Ver.2.3</b> (2026.04.07) — 管理者画面追加、ROOM_LIST自動生成、同型教室グループ表示、パーティションI/II<br>
+<b>Ver.2.2</b> (2026.04.07) — 201教室の着座ルールをルールベース化（1ブロック最大5席）<br>
+<b>Ver.2.1</b> (2026.04.06) — 全教室をrooms_physical.jsベースのgenerateRoom()で統一生成<br>
+<b>Ver.2.0</b> (2026.04.06) — 物理データ起点に全面再設計。rooms_physical.js導入
+</div>
+</details>
 <script src="rooms_physical.js"></script>
 <script>
 // PHYSICALから自動生成
@@ -221,7 +235,7 @@ function doAssign(room, students, cfg, excludeCenter) {
   else ord = students.slice();
   var m = {}, len = Math.min(ord.length, f.length);
   for (var i = 0; i < len; i++) m[f[i].n] = ord[i];
-  return { m: m, used: f.length, placed: len };
+  return { m: m, used: f.length, placed: len, slots: f };
 }
 
 function parseFile(data) {
@@ -265,6 +279,32 @@ function App() {
   var _disp = useState("id"), dispMode = _disp[0], setDispMode = _disp[1];
   var _help = useState(false), showHelp = _help[0], setShowHelp = _help[1];
   var _mpb = useState(function(){ var o={}; ALL_ROOMS.forEach(function(id){o[id]=DEFAULT_MAX[id];}); return o; }), maxPerBlock = _mpb[0], setMaxPerBlock = _mpb[1];
+  var _swSel = useState(null), swapSel = _swSel[0], setSwapSel = _swSel[1];
+  var _swaps = useState([]), swaps = _swaps[0], setSwaps = _swaps[1];
+  var _committed = useState(null), committed = _committed[0], setCommitted = _committed[1];
+  var _repacked = useState(null), repackedMap = _repacked[0], setRepackedMap = _repacked[1];
+  var _pinIds = useState(new Set()), pinnedStudentIds = _pinIds[0], setPinnedStudentIds = _pinIds[1];
+  var _overflow = useState({}), overflow = _overflow[0], setOverflow = _overflow[1];
+  var _ovSel = useState(null), overflowSel = _ovSel[0], setOverflowSel = _ovSel[1];
+  var _covf = useState({}), committedOverflow = _covf[0], setCommittedOverflow = _covf[1];
+
+  function onOverflowClick(key) {
+    if (overflowSel === null) {
+      if (overflow[key]) setOverflowSel(key);
+    } else if (overflowSel === key) {
+      setOverflowSel(null);
+    } else {
+      setOverflow(function(prev){
+        var nw = {}; for(var k in prev) nw[k]=prev[k];
+        var tmp = nw[overflowSel];
+        nw[overflowSel] = nw[key];
+        if (tmp) nw[key] = tmp;
+        if (!nw[overflowSel]) delete nw[overflowSel];
+        return nw;
+      });
+      setOverflowSel(null);
+    }
+  }
   var svgRef = useRef(null), fileRef = useRef(null);
 
   var roomCaps = useMemo(function(){
@@ -279,20 +319,154 @@ function App() {
   var curMax = maxPerBlock[roomId] || DEFAULT_MAX[roomId];
   var room = useMemo(function(){ return applyMaxPerBlock(roomId, curMax); }, [roomId, curMax]);
   var layout = useMemo(function(){ return calcLayout(room); }, [roomId, curMax]);
-  var colXArr=layout.colXArr, colWArr=layout.colWArr, aisleAfter=layout.aisleAfter, tw=layout.tw, th=layout.th;
+
+  // Adjust layout when overflow is active: widen gap columns to full seat width
+  var hasOverflow = Object.keys(overflow).length > 0 || Object.keys(committedOverflow).length > 0;
+  var adjusted = useMemo(function(){
+    if (!hasOverflow) return layout;
+    var ovCols = new Set();
+    for (var key in overflow) { var parts = key.split(","); ovCols.add(parseInt(parts[1])); }
+    for (var key in committedOverflow) { var parts = key.split(","); ovCols.add(parseInt(parts[1])); }
+    // Also widen ALL gap columns for consistency when overflow is active
+    var newColW = [], newColX = [], x = PAD;
+    for (var c = 0; c < room.cols; c++) {
+      newColX.push(x);
+      var w = (layout.colIsSeat[c] || ovCols.has(c)) ? SW : GW;
+      newColW.push(w);
+      x += w;
+      if (layout.aisleAfter.has(c)) x += AG;
+    }
+    return { colIsSeat: layout.colIsSeat, aisleAfter: layout.aisleAfter,
+             colXArr: newColX, colWArr: newColW, tw: x + PAD, th: layout.th };
+  }, [layout, hasOverflow, overflow]);
+
+  var colXArr=adjusted.colXArr, colWArr=adjusted.colWArr, aisleAfter=adjusted.aisleAfter, tw=adjusted.tw, th=adjusted.th;
   var res = useMemo(function(){
     if (!students.length) return {m:{},used:0,placed:0};
     return doAssign(room, students, cfg, excludeCenter);
   }, [students, cfg, roomId, excludeCenter, curMax]);
 
+  // Apply manual swaps/moves
+  var confirmedMap = committed || res.m;
+  var baseMap = repackedMap || confirmedMap;
+  var eff = useMemo(function(){
+    var m = {}; for (var k in baseMap) m[k] = baseMap[k];
+    for (var i = 0; i < swaps.length; i++) {
+      var a = swaps[i][0], b = swaps[i][1];
+      var tmp = m[a]; m[a] = m[b]; m[b] = tmp;
+    }
+    return m;
+  }, [baseMap, swaps]);
+
+  // Purple highlight: any seat where eff differs from confirmedMap (uncommitted changes)
+  var swappedSeats = useMemo(function(){
+    var s = new Set();
+    var allKeys = new Set(Object.keys(eff).concat(Object.keys(confirmedMap)));
+    allKeys.forEach(function(k){
+      var e = eff[k], c = confirmedMap[k];
+      if (e && !c) s.add(k);
+      else if (!e && c) s.add(k);
+      else if (e && c && e.id !== c.id) s.add(k);
+    });
+    return s;
+  }, [eff, confirmedMap]);
+
+  function onSeatClick(sn) {
+    if (!students.length) return;
+    if (swapSel === null) {
+      if (eff[sn]) setSwapSel(sn); // select occupied seat
+    } else if (swapSel === sn) {
+      setSwapSel(null); // deselect
+    } else {
+      var fromSt = eff[swapSel], toSt = eff[sn];
+      // Track manually moved student IDs
+      setPinnedStudentIds(function(prev){
+        var s = new Set(prev);
+        if (fromSt) s.add(fromSt.id);
+        if (toSt) s.add(toSt.id);
+        return s;
+      });
+      setSwaps(function(p){ return p.concat([[swapSel, sn, fromSt?fromSt.id:"", toSt?toSt.id:""]]); });
+      setSwapSel(null);
+    }
+  }
+  function removeSwap(idx) { setSwaps(function(p){ return p.filter(function(_,i){return i!==idx;}); }); }
+  function clearSwaps() { setSwaps([]); setSwapSel(null); setRepackedMap(null); setPinnedStudentIds(new Set()); setOverflow({}); setOverflowSel(null);setCommittedOverflow({}); }
+  function commitSwaps() {
+    var m = {}; for (var k in eff) if(eff[k]) m[k] = eff[k];
+    var cov = {}; for(var k in committedOverflow) cov[k]=committedOverflow[k]; for(var k in overflow) cov[k]=overflow[k];
+    setCommittedOverflow(cov);
+    setCommitted(m); setSwaps([]); setSwapSel(null); setRepackedMap(null); setPinnedStudentIds(new Set()); setOverflow({}); setOverflowSel(null);
+  }
+  function repack() {
+    var slots = res.slots; if(!slots||!slots.length) return;
+    // Find current seats of pinned students
+    var pinned = {};  // sn → student
+    for (var r = 0; r < room.rows; r++) {
+      for (var c = 0; c < room.cols; c++) {
+        var sn = room.grid[r][c];
+        if (sn > 0 && eff[sn] && pinnedStudentIds.has(eff[sn].id)) {
+          pinned[sn] = eff[sn];
+        }
+      }
+    }
+    // Collect unpinned students in slot order
+    var unpinned = [];
+    for (var i = 0; i < slots.length; i++) {
+      var st = eff[slots[i].n];
+      if (st && !pinnedStudentIds.has(st.id)) unpinned.push(st);
+    }
+    // Build new map: pinned seats fixed, unpinned fill remaining slots
+    var m = {};
+    for (var sn in pinned) m[sn] = pinned[sn];
+    var ui = 0;
+    for (var i = 0; i < slots.length; i++) {
+      var sn = slots[i].n;
+      if (!pinned[sn]) {
+        if (ui < unpinned.length) { m[sn] = unpinned[ui++]; }
+      }
+    }
+    setRepackedMap(m); setSwaps([]); setSwapSel(null);
+  }
+  function squeezeIn() {
+    var placedIds = new Set();
+    for (var k in eff) if (eff[k]) placedIds.add(eff[k].id);
+    // Also count committedOverflow
+    for (var k in committedOverflow) if (committedOverflow[k]) placedIds.add(committedOverflow[k].id);
+    var unplaced = students.filter(function(s){ return !placedIds.has(s.id); });
+    if (!unplaced.length) return;
+    // Collect gap positions (grid value 0), respecting skip/gap settings
+    var allGaps = [];
+    for (var r = 0; r < room.rows; r++)
+      for (var c = 0; c < room.cols; c++)
+        if (room.grid[r][c] === 0) allGaps.push({r:r, c:c});
+    // Apply skip filters
+    var filtered = allGaps.filter(function(g){
+      return g.r >= cfg.skipFront && g.r <= room.rows - 1 - cfg.skipBack &&
+             g.c >= cfg.skipLeft && g.c <= room.cols - 1 - cfg.skipRight;
+    });
+    // Apply row/col gap
+    if (cfg.colGap > 0 || cfg.rowGap > 0) {
+      var rs = Array.from(new Set(filtered.map(function(g){return g.r}))).sort(function(a,b){return a-b});
+      var cs = Array.from(new Set(filtered.map(function(g){return g.c}))).sort(function(a,b){return a-b});
+      var kr = new Set(rs.filter(function(_,i){return i%(cfg.rowGap+1)===0}));
+      var kc = new Set(cs.filter(function(_,i){return i%(cfg.colGap+1)===0}));
+      filtered = filtered.filter(function(g){return kr.has(g.r) && kc.has(g.c)});
+    }
+    var ov = {};
+    var len = Math.min(unplaced.length, filtered.length);
+    for (var i = 0; i < len; i++) ov[filtered[i].r+","+filtered[i].c] = unplaced[i];
+    setOverflow(ov);
+  }
+
   function onFile(e) {
     var file = e.target.files&&e.target.files[0]; if(!file) return;
     setFileName(file.name);
     var rd = new FileReader();
-    rd.onload = function(ev) { var r=parseFile(new Uint8Array(ev.target.result)); setStudents(r.st); setInfo(r.inf); };
+    rd.onload = function(ev) { var r=parseFile(new Uint8Array(ev.target.result)); setStudents(r.st); setInfo(r.inf); setSwaps([]); setSwapSel(null); setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({}); };
     rd.readAsArrayBuffer(file);
   }
-  function up(k,v) { setCfg(function(p){ var o={}; for(var x in p) o[x]=p[x]; o[k]=v; return o; }); }
+  function up(k,v) { setCfg(function(p){ var o={}; for(var x in p) o[x]=p[x]; o[k]=v; return o; }); setSwaps([]); setSwapSel(null); setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({}); }
   function save() {
     var el=svgRef.current; if(!el) return;
     var xml=new XMLSerializer().serializeToString(el);
@@ -320,12 +494,17 @@ function App() {
       var x = colXArr[c], w = colWArr[c], y = rowY(r);
       var isExcluded = excSet.has(r+","+c);
       if (sn > 0 && !isExcluded) {
-        var st = res.m[sn];
-        cells.push(ce("g",{key:"s"+sn},
+        var st = eff[sn];
+        var isSel = swapSel === sn;
+        var isSwapped = swappedSeats.has(String(sn)) && (st || !res.m[sn]);
+        var clickable = students.length > 0 && (st || swapSel !== null);
+        cells.push(ce("g",{key:"s"+sn,style:{cursor:clickable?"pointer":"default"},onClick:clickable?function(n){return function(){onSeatClick(n)}}(sn):undefined},
           ce("text",{x:x+w/2,y:y+8,textAnchor:"middle",fontSize:"6",fill:"#999"},sn),
           ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
-            fill:st?"#FFFDE7":"#fff",stroke:st?"#c5a000":"#ccc",strokeWidth:st?1.2:0.5}),
-          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
+            fill:isSel?"#bbdefb":isSwapped?"#e8eaf6":st?"#FFFDE7":"#fff",
+            stroke:isSel?"#1565c0":isSwapped?"#5c6bc0":st?"#c5a000":"#ccc",
+            strokeWidth:isSel?2:isSwapped?1.5:st?1.2:0.5}),
+          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:isSel?"#1565c0":isSwapped?"#283593":"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
         ));
       } else if (sn > 0 && isExcluded) {
         cells.push(ce("g",{key:"x"+r+"_"+c},
@@ -334,9 +513,33 @@ function App() {
           ce("line",{x1:x+w-4,y1:y+14,x2:x+4,y2:y+CH+6,stroke:"#bbb",strokeWidth:0.8})
         ));
       } else {
-        cells.push(ce("rect",{key:"g"+r+"_"+c,
-          x:x+(w-GW)/2+1,y:y+13,width:GW-2,height:CH-6,rx:"1",
-          fill:"#e0e3ea",stroke:"#ccd0d8",strokeWidth:0.3}));
+        var ovKey = r+","+c;
+        var ovSt = overflow[ovKey];
+        var covSt = committedOverflow[ovKey];
+        var isOvSel = overflowSel === ovKey;
+        var gapClickable = hasOverflow && (ovSt || overflowSel !== null);
+        if (ovSt) {
+          cells.push(ce("g",{key:"ov"+r+"_"+c,style:{cursor:"pointer"},onClick:function(k){return function(){onOverflowClick(k)}}(ovKey)},
+            ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
+              fill:isOvSel?"#bbdefb":"#FFEBEE",stroke:isOvSel?"#1565c0":"#c62828",strokeWidth:isOvSel?2:1.2}),
+            ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:isOvSel?"#1565c0":"#c62828"},dispMode==="name"?(ovSt.name||ovSt.id):ovSt.id)
+          ));
+        } else if (covSt) {
+          cells.push(ce("g",{key:"cov"+r+"_"+c},
+            ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
+              fill:"#FFFDE7",stroke:"#c5a000",strokeWidth:1.2}),
+            ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(covSt.name||covSt.id):covSt.id)
+          ));
+        } else if (gapClickable) {
+          cells.push(ce("rect",{key:"g"+r+"_"+c,
+            x:x+(w-GW)/2+1,y:y+13,width:GW-2,height:CH-6,rx:"1",
+            fill:"#e0e3ea",stroke:"#ccd0d8",strokeWidth:0.3,
+            style:{cursor:"pointer"},onClick:function(k){return function(){onOverflowClick(k)}}(ovKey)}));
+        } else {
+          cells.push(ce("rect",{key:"g"+r+"_"+c,
+            x:x+(w-GW)/2+1,y:y+13,width:GW-2,height:CH-6,rx:"1",
+            fill:"#e0e3ea",stroke:"#ccd0d8",strokeWidth:0.3}));
+        }
       }
     }
   }
@@ -425,7 +628,7 @@ function App() {
                   var isPartBtn = !!ph.parent;
                   return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
                     style:isPartBtn?{fontSize:11,padding:"4px 8px"}:{},
-                    onClick:function(){setRoomId(rid);setExportImg(null);}},
+                    onClick:function(){setRoomId(rid);setExportImg(null);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},
                     label,ce("span",{style:{fontSize:isPartBtn?8:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
                 });
                 if(gi < groups.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
@@ -449,11 +652,11 @@ function App() {
         ce("div",null,ce("span",{className:"ctrl-label"},"ブロック内最大席数"),
           ce("div",{style:{display:"flex",alignItems:"center",gap:4}},
             ce("input",{type:"number",className:"ctrl-num",min:1,max:20,value:curMax,
-              onChange:function(e){var v=parseInt(e.target.value)||1;setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=v;return o;});setExportImg(null);}}),
+              onChange:function(e){var v=parseInt(e.target.value)||1;setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=v;return o;});setExportImg(null);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}}),
             curMax !== DEFAULT_MAX[roomId] && ce("button",{style:{fontSize:9,background:"#eee",border:"1px solid #ccc",borderRadius:4,padding:"1px 6px",cursor:"pointer",lineHeight:"1.4"},
-              onClick:function(){setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=DEFAULT_MAX[roomId];return o;});setExportImg(null);}},"↩"))),
+              onClick:function(){setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=DEFAULT_MAX[roomId];return o;});setExportImg(null);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},"↩"))),
         room.centerExclude&&ce("label",{style:{fontSize:12,display:"flex",alignItems:"center",gap:5,height:30,cursor:"pointer",userSelect:"none"}},
-          ce("input",{type:"checkbox",checked:excludeCenter,onChange:function(e){setExcludeCenter(e.target.checked)},style:{width:16,height:16}}),
+          ce("input",{type:"checkbox",checked:excludeCenter,onChange:function(e){setExcludeCenter(e.target.checked);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});},style:{width:16,height:16}}),
           "中央4席除外"),
         ce("div",null,ce("span",{className:"ctrl-label"},"表示"),
           ce("select",{className:"ctrl-select",value:dispMode,onChange:function(e){setDispMode(e.target.value);setExportImg(null);}},
@@ -464,10 +667,51 @@ function App() {
         ce("span",null,"受講者: ",ce("b",null,students.length)),
         ce("span",null,"使用席: ",ce("b",null,res.used)),
         ce("span",null,"配置済: ",ce("b",null,res.placed)),
-        students.length>res.used&&ce("span",{className:"warn"},"⚠ "+(students.length-res.used)+"名分不足"),
+        (function(){
+          var ovCount = Object.keys(overflow).length + Object.keys(committedOverflow).length;
+          var shortage = students.length - res.used;
+          var stillUnplaced = shortage - ovCount;
+          if (shortage <= 0) return null;
+          var gapCount = 0;
+          for(var rr=0;rr<room.rows;rr++) for(var cc=0;cc<room.cols;cc++) {
+            if(room.grid[rr][cc]!==0) continue;
+            if(rr<cfg.skipFront||rr>room.rows-1-cfg.skipBack) continue;
+            if(cc<cfg.skipLeft||cc>room.cols-1-cfg.skipRight) continue;
+            gapCount++;
+          }
+          var availGaps = gapCount - ovCount;
+          return [
+            ce("span",{key:"w",className:"warn"},"⚠ "+shortage+"名分不足"),
+            ovCount>0&&ce("span",{key:"ov",style:{color:"#c62828",fontWeight:600}},"🔴 "+ovCount+"名をギャップ席に配置"+(stillUnplaced>0?"（さらに"+stillUnplaced+"名不足）":"")),
+            ovCount>0&&ce("button",{key:"ovclr",onClick:function(){setOverflow({});setOverflowSel(null);setCommittedOverflow({})},
+              style:{background:"#ffebee",color:"#c62828",border:"1px solid #ef9a9a",borderRadius:4,padding:"1px 8px",fontSize:10,cursor:"pointer"}},"解除"),
+            !ovCount&&availGaps>0&&ce("button",{key:"sq",onClick:squeezeIn,
+              style:{background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80",borderRadius:4,padding:"1px 8px",fontSize:10,cursor:"pointer",marginLeft:4}},
+              "⚡ 無理に詰め込む"+(shortage>availGaps?"（"+availGaps+"席分のみ）":"")),
+            !ovCount&&availGaps<=0&&ce("span",{key:"ng",style:{color:"#999",fontSize:10}},"（ギャップ席なし）"),
+            overflowSel&&overflow[overflowSel]&&ce("span",{key:"sel",style:{color:"#1565c0",fontSize:10}},"（"+overflow[overflowSel].id+" 選択中→別のギャップ椅子をクリック）")
+          ];
+        })(),
         cfg.order!=="sequential"&&cfg.order!=="reverse"&&ce("span",{style:{color:"#1565c0"}},
           "（"+(cfg.order==="oddEven"?"奇数末尾→偶数末尾":"偶数末尾→奇数末尾")+"の順で配置）"),
         cfg.order==="reverse"&&ce("span",{style:{color:"#1565c0"}},"（名簿逆順で配置）"))),
+    students.length>0&&(swapSel!==null||swappedSeats.size>0)&&ce("div",{className:"card",style:{padding:"8px 12px"}},
+      swapSel!==null&&ce("div",{className:"swap-hint"},
+        ce("span",{style:{fontSize:16}},"🔄"),
+        "席"+swapSel+"（"+(eff[swapSel]?eff[swapSel].id+" "+eff[swapSel].name:"")+"）を選択中 — 入れ替え先の学生または空席をクリック",
+        ce("button",{onClick:function(){setSwapSel(null)},style:{marginLeft:"auto",background:"#fff",border:"1px solid #ccc",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer"}},"キャンセル")),
+      swappedSeats.size>0&&ce("div",{style:{marginTop:swapSel?6:0}},
+        ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}},
+          ce("span",{style:{fontSize:12,fontWeight:600,color:"#283593"}},"未確定の変更（"+swappedSeats.size+"席）"),
+          ce("button",{onClick:repack,style:{background:"#e3f2fd",color:"#1565c0",border:"1px solid #90caf9",borderRadius:4,padding:"1px 8px",fontSize:10,cursor:"pointer"}},"⇢ 詰め直し"),
+          ce("button",{onClick:commitSwaps,style:{background:"#e8f5e9",color:"#2e7d32",border:"1px solid #a5d6a7",borderRadius:4,padding:"1px 8px",fontSize:10,cursor:"pointer"}},"✓ 確定"),
+          ce("button",{onClick:clearSwaps,style:{background:"#ffebee",color:"#c62828",border:"1px solid #ef9a9a",borderRadius:4,padding:"1px 8px",fontSize:10,cursor:"pointer"}},"全解除")),
+        swaps.length>0&&ce("div",{style:{marginTop:4}},
+          swaps.map(function(sw,i){
+            var label = sw[2] && sw[3] ? (sw[2]+" ⇄ "+sw[3]) : sw[2] ? (sw[2]+" → 席"+sw[1]) : "?";
+            return ce("span",{key:i,className:"swap-badge",onClick:function(){removeSwap(i)},title:"クリックで取消"},
+              label," ✕");
+          })))),
     exportImg&&ce("div",{className:"card"},
       ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
         ce("span",{style:{fontSize:13,fontWeight:700,color:"#1a237e"}},"生成画像（右クリック/長押しで保存）"),
@@ -485,13 +729,16 @@ function App() {
       ce("summary",{style:{fontSize:12,fontWeight:600,cursor:"pointer"}},"名簿（"+students.length+"名）"),
       ce("div",{style:{marginTop:6,columns:"220px 4",fontSize:11}},
         students.map(function(s,i){
-          var found=null,keys=Object.keys(res.m);
-          for(var ki=0;ki<keys.length;ki++) if(res.m[keys[ki]].id===s.id){found=keys[ki];break;}
+          var found=null,keys=Object.keys(eff);
+          for(var ki=0;ki<keys.length;ki++) if(eff[keys[ki]]&&eff[keys[ki]].id===s.id){found=keys[ki];break;}
+          var ovFound=null;
+          if(!found){var ovKeys=Object.keys(overflow);for(var oi=0;oi<ovKeys.length;oi++) if(overflow[ovKeys[oi]]&&overflow[ovKeys[oi]].id===s.id){ovFound=ovKeys[oi];break;}}
           var d=lastDigit(s.id);
-          return ce("div",{key:i,style:{padding:"1px 4px",background:found?"#f1f8e9":"#fff3e0",borderRadius:2,marginBottom:1}},
+          return ce("div",{key:i,style:{padding:"1px 4px",background:found?"#f1f8e9":ovFound?"#FFEBEE":"#fff3e0",borderRadius:2,marginBottom:1}},
             ce("b",null,s.id)," ",s.name," ",
             ce("span",{style:{color:"#aaa",fontSize:9}},"["+(d%2===1?"奇":"偶")+"]"),
-            found&&ce("span",{style:{color:"#888",float:"right"}},"席"+found));
+            found&&ce("span",{style:{color:"#888",float:"right"}},"席"+found),
+            ovFound&&ce("span",{style:{color:"#c62828",float:"right",fontSize:9}},"⚡詰込"));
         }))),
     showHelp&&ce("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200},onClick:function(){setShowHelp(false)}},
       ce("div",{style:{background:"#fff",borderRadius:12,padding:24,maxWidth:640,maxHeight:"85vh",overflow:"auto",boxShadow:"0 8px 30px rgba(0,0,0,.3)",margin:16},onClick:function(e){e.stopPropagation()}},
@@ -522,7 +769,25 @@ function App() {
                 ce("td",{style:{padding:"4px 8px",color:"#555"}},r[1]));
             }))),
 
-        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"4. 画像を生成・保存する"),
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"4. 座席を手動で入れ替え/移動する"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:12,lineHeight:1.6}},
+          "座席表上の学生をクリックして選択（青枠）→ 別の学生をクリックで入れ替え、空席をクリックで移動。",
+          ce("br"),
+          "変更した席は紫色で表示されます。個別に取消（✕バッジ）も可能。"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:12,lineHeight:1.6}},
+          ce("b",null,"⇢ 詰め直し"),": 手動移動した学生はそのまま固定し、残りの学生を前から順に詰め直します。何度でも繰り返せます。",
+          ce("br"),
+          ce("b",null,"✓ 確定"),": すべての変更を確定し、紫色の表示を解除します。",
+          ce("br"),
+          ce("b",null,"全解除"),": すべての未確定変更を取り消します。"),
+
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"5. 定員超過時: 無理に詰め込む"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:12,lineHeight:1.6}},
+          "受講者が定員を超えた場合、「⚡ 無理に詰め込む」ボタンが表示されます。クリックすると、1席空けで空けているギャップ椅子に溢れた学生を前列から配置します（赤枠表示）。",
+          ce("br"),
+          "詰め込んだ学生をクリックして別のギャップ椅子に移動することもできます。「✓ 確定」で赤枠が黄枠（通常）に変わります。"),
+
+        ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"6. 画像を生成・保存する"),
         ce("div",{style:{fontSize:12,color:"#444",marginBottom:16,lineHeight:1.6}},"「画像生成」ボタンで座席表のPNG画像を作成します。「ダウンロード」ボタンまたは画像を右クリック/長押しで保存できます。"),
 
         ce("div",{style:{background:"#f5f5f5",borderRadius:8,padding:12,marginBottom:12}},
