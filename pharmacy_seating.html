@@ -93,6 +93,8 @@
     <button onclick="clearAll()">🗑 リセット</button>
     <button onclick="showAssignModal()" id="btnAssign" style="display:none">📋 配席</button>
     <button onclick="undoLast()">↩ 取消</button>
+    <button onclick="autoFillRemaining()" id="btnFill" style="display:none">▶ 残りを自動配置</button>
+    <button onclick="repack()" id="btnRepack" style="display:none">⟳ 詰め直し</button>
     <button onclick="confirmAll()" id="btnConfirm" style="display:none">✓ 確定</button>
     <button class="btn-accent" onclick="downloadPNG()">📷 画像DL</button>
     <button class="btn-help" onclick="toggleHelp()">?</button>
@@ -181,7 +183,7 @@ function R(){return ROOMS[curRoom]}
 let students=[],selIdx=null,subjectName='',teacherName='',asgn={},hist=[],mode='manual',swapId=null,moved=new Set();
 
 function populateRoomSelect(){document.getElementById('roomButtons').innerHTML=Object.keys(ROOMS).map(id=>`<button class="room-btn${id===curRoom?' active':''}" onclick="switchRoom('${id}')">${id}</button>`).join('')}
-function switchRoom(id){if(Object.keys(asgn).length>0&&!confirm('配席リセットしますか？'))return;curRoom=id;asgn={};hist=[];document.getElementById('skipFront').value=0;document.getElementById('skipBack').value=0;document.getElementById('skipLeft').value=0;document.getElementById('skipRight').value=0;selIdx=students.length?0:null;swapId=null;mode='manual';moved.clear();showConfirmBtn();populateRoomSelect();renderRoom();renderRoster();updateInfoPanel()}
+function switchRoom(id){if(Object.keys(asgn).length>0&&!confirm('配席リセットしますか？'))return;curRoom=id;asgn={};hist=[];document.getElementById('skipFront').value=0;document.getElementById('skipBack').value=0;document.getElementById('skipLeft').value=0;document.getElementById('skipRight').value=0;selIdx=students.length?0:null;swapId=null;mode='manual';moved.clear();showConfirmBtn();showActionBtns();populateRoomSelect();renderRoom();renderRoster();updateInfoPanel()}
 function getSkips(){return{f:+document.getElementById('skipFront').value||0,b:+document.getElementById('skipBack').value||0,l:+document.getElementById('skipLeft').value||0,r:+document.getElementById('skipRight').value||0}}
 function onSkipChange(){
   // Re-assign students if already assigned
@@ -197,7 +199,7 @@ function onSkipChange(){
     asgn={};moved.clear();
     const n=Math.min(assignedStudents.length,ids.length);
     for(let i=0;i<n;i++)asgn[ids[i]]={studentId:assignedStudents[i].id,studentName:assignedStudents[i].name};
-    showConfirmBtn();
+    showActionBtns();
   }
   renderRoom();renderRoster();updateShortage()
 }
@@ -306,7 +308,7 @@ function onSeatClick(sid){
   if(mode==='adjust'){
     if(!swapId){if(asgn[sid]){swapId=sid;renderRoom();updateStats()}}
     else if(swapId===sid){swapId=null;renderRoom();updateStats()}
-    else{const src=asgn[swapId],dst=asgn[sid];if(dst){asgn[swapId]=dst;asgn[sid]=src;moved.add(swapId);moved.add(sid);hist.push({type:'swap',s1:swapId,s2:sid})}else if(isA){asgn[sid]=src;delete asgn[swapId];moved.add(sid);moved.add(swapId);hist.push({type:'move',from:swapId,to:sid,data:src})}swapId=null;showConfirmBtn();renderRoom();renderRoster()}
+    else{const src=asgn[swapId],dst=asgn[sid];if(dst){asgn[swapId]=dst;asgn[sid]=src;moved.add(swapId);moved.add(sid);hist.push({type:'swap',s1:swapId,s2:sid})}else if(isA){asgn[sid]=src;delete asgn[swapId];moved.add(sid);moved.add(swapId);hist.push({type:'move',from:swapId,to:sid,data:src})}swapId=null;showActionBtns();renderRoom();renderRoster()}
     return;
   }
   if(asgn[sid]){const p=asgn[sid];delete asgn[sid];hist.push({type:'unassign',seatId:sid,data:p});renderRoom();renderRoster();return}
@@ -314,7 +316,7 @@ function onSeatClick(sid){
   const ex=Object.keys(asgn).find(k=>asgn[k].studentId===st.id);if(ex)delete asgn[ex];
   asgn[sid]={studentId:st.id,studentName:st.name};hist.push({type:'assign',seatId:sid,studentIdx:selIdx});
   let next=null;for(let i=selIdx+1;i<students.length;i++){if(!isAsgd(i)){next=i;break}}selIdx=next;
-  renderRoom();renderRoster();
+  showActionBtns();renderRoom();renderRoster();
 }
 function isAsgd(i){return Object.values(asgn).some(a=>a.studentId===students[i].id)}
 function seatLbl(id){const ids=allowedIds();for(const[sid,d]of Object.entries(asgn)){if(d.studentId===id){const i=ids.indexOf(sid);return i>=0?String(i+1):''}}return''}
@@ -352,10 +354,10 @@ document.getElementById('fileInput').addEventListener('change',function(e){
   if(hR<0){alert('学籍番号列が見つかりません');return}students=[];for(let r=hR+1;r<data.length;r++){const row=data[r];if(!row||!row[iC])continue;const id=String(row[iC]).trim(),nm=nC>=0&&row[nC]?String(row[nC]).trim():'';if(id)students.push({id,name:nm})}
   asgn={};hist=[];selIdx=null;swapId=null;moved.clear();showConfirmBtn();renderRoom();renderRoster();showBtnAssign();updateInfoPanel();document.getElementById('modeModal').classList.add('show')};reader.readAsArrayBuffer(file);e.target.value='';});
 
-function doAuto(dir){document.getElementById('modeModal').classList.remove('show');asgn={};moved.clear();let ids=allowedIds();if(dir==='right')ids.reverse();const n=Math.min(students.length,ids.length);for(let i=0;i<n;i++)asgn[ids[i]]={studentId:students[i].id,studentName:students[i].name};mode='adjust';selIdx=null;swapId=null;renderRoom();renderRoster()}
-function doManual(){document.getElementById('modeModal').classList.remove('show');mode='manual';selIdx=students.length?0:null;swapId=null;renderRoom();renderRoster()}
-function clearAll(){if(Object.keys(asgn).length>0&&!confirm('配席リセット？'))return;asgn={};hist=[];swapId=null;moved.clear();showConfirmBtn();selIdx=null;mode='manual';renderRoom();renderRoster()}
-function undoLast(){const l=hist.pop();if(!l)return;if(l.type==='assign'){delete asgn[l.seatId];selIdx=l.studentIdx}else if(l.type==='unassign')asgn[l.seatId]=l.data;else if(l.type==='swap'){const t=asgn[l.s1];asgn[l.s1]=asgn[l.s2];asgn[l.s2]=t;moved.delete(l.s1);moved.delete(l.s2)}else if(l.type==='move'){asgn[l.from]=l.data;delete asgn[l.to];moved.delete(l.from);moved.delete(l.to)}swapId=null;showConfirmBtn();renderRoom();renderRoster()}
+function doAuto(dir){document.getElementById('modeModal').classList.remove('show');asgn={};moved.clear();let ids=allowedIds();if(dir==='right')ids.reverse();const n=Math.min(students.length,ids.length);for(let i=0;i<n;i++)asgn[ids[i]]={studentId:students[i].id,studentName:students[i].name};mode='adjust';selIdx=null;swapId=null;showActionBtns();renderRoom();renderRoster()}
+function doManual(){document.getElementById('modeModal').classList.remove('show');mode='manual';selIdx=students.length?0:null;swapId=null;showActionBtns();renderRoom();renderRoster()}
+function clearAll(){if(Object.keys(asgn).length>0&&!confirm('配席リセット？'))return;asgn={};hist=[];swapId=null;moved.clear();selIdx=null;mode='manual';showActionBtns();renderRoom();renderRoster()}
+function undoLast(){const l=hist.pop();if(!l)return;if(l.type==='assign'){delete asgn[l.seatId];selIdx=l.studentIdx}else if(l.type==='unassign')asgn[l.seatId]=l.data;else if(l.type==='swap'){const t=asgn[l.s1];asgn[l.s1]=asgn[l.s2];asgn[l.s2]=t;moved.delete(l.s1);moved.delete(l.s2)}else if(l.type==='move'){asgn[l.from]=l.data;delete asgn[l.to];moved.delete(l.from);moved.delete(l.to)}swapId=null;showActionBtns();renderRoom();renderRoster()}
 function showConfirmBtn(){document.getElementById('btnConfirm').style.display=moved.size>0?'':'none'}
 function confirmAll(){moved.clear();showConfirmBtn();renderRoom()}
 function downloadPNG(){
@@ -399,6 +401,41 @@ function updateShortage(){
   const sh=document.getElementById('infoShortage');
   if(students.length>seats){sh.className='info-warn';sh.textContent='（'+seats+'席に対し'+(students.length-seats)+'名不足）'}
   else{sh.className='';sh.textContent='（着席可能: '+seats+'席）'}
+}
+function autoFillRemaining(){
+  const ids=allowedIds();
+  const emptySeats=ids.filter(id=>!asgn[id]);
+  const unassigned=students.filter(st=>!Object.values(asgn).some(a=>a.studentId===st.id));
+  const n=Math.min(unassigned.length,emptySeats.length);
+  for(let i=0;i<n;i++)asgn[emptySeats[i]]={studentId:unassigned[i].id,studentName:unassigned[i].name};
+  mode='adjust';selIdx=null;swapId=null;
+  showActionBtns();renderRoom();renderRoster();
+}
+function repack(){
+  // Keep pinned (moved) students in place, re-assign the rest
+  const pinned={};
+  moved.forEach(sid=>{if(asgn[sid])pinned[sid]=asgn[sid]});
+  const pinnedIds=new Set(Object.values(pinned).map(d=>d.studentId));
+  // Clear non-pinned
+  const newAsgn={...pinned};
+  // Get remaining students in original order
+  const remaining=students.filter(st=>!pinnedIds.has(st.id));
+  // Get empty allowed seats
+  const ids=allowedIds();
+  const emptySeats=ids.filter(id=>!newAsgn[id]);
+  const n=Math.min(remaining.length,emptySeats.length);
+  for(let i=0;i<n;i++)newAsgn[emptySeats[i]]={studentId:remaining[i].id,studentName:remaining[i].name};
+  asgn=newAsgn;
+  hist=[];mode='adjust';selIdx=null;swapId=null;
+  showActionBtns();renderRoom();renderRoster();
+}
+function showActionBtns(){
+  const hasStudents=students.length>0;
+  const hasAsgn=Object.keys(asgn).length>0;
+  const allAssigned=hasStudents&&students.every(st=>Object.values(asgn).some(a=>a.studentId===st.id));
+  document.getElementById('btnFill').style.display=(hasStudents&&!allAssigned)?'':'none';
+  document.getElementById('btnRepack').style.display=(hasAsgn)?'':'none';
+  showConfirmBtn();
 }
 function showAssignModal(){if(!students.length){alert('名簿を読み込んでください');return}document.getElementById('modeModal').classList.add('show')}
 function showBtnAssign(){document.getElementById('btnAssign').style.display=students.length?'':'none'}
