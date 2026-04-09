@@ -305,7 +305,8 @@ function App() {
       setOverflowSel(null);
     }
   }
-  var svgRef = useRef(null), fileRef = useRef(null);
+  var svgRef = useRef(null), fileRef = useRef(null), addFileRef = useRef(null);
+  var _fnames = useState([]), fileNames = _fnames[0], setFileNames = _fnames[1];
 
   var roomCaps = useMemo(function(){
     var caps = {};
@@ -461,10 +462,31 @@ function App() {
 
   function onFile(e) {
     var file = e.target.files&&e.target.files[0]; if(!file) return;
-    setFileName(file.name);
+    setFileName(file.name); setFileNames([file.name]);
     var rd = new FileReader();
     rd.onload = function(ev) { var r=parseFile(new Uint8Array(ev.target.result)); setStudents(r.st); setInfo(r.inf); setSwaps([]); setSwapSel(null); setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({}); };
     rd.readAsArrayBuffer(file);
+  }
+  function onAddFile(e) {
+    var file = e.target.files&&e.target.files[0]; if(!file) return;
+    var rd = new FileReader();
+    rd.onload = function(ev) {
+      var r = parseFile(new Uint8Array(ev.target.result));
+      if (!r.st.length) return;
+      // Merge: add new students, skip duplicates by ID
+      setStudents(function(prev){
+        var ids = new Set(prev.map(function(s){return s.id}));
+        var added = r.st.filter(function(s){return !ids.has(s.id)});
+        return prev.concat(added);
+      });
+      setFileNames(function(prev){ return prev.concat([file.name]); });
+      // Update info if not set
+      if (!info.sub && r.inf.sub) setInfo(r.inf);
+      // Reset assignment state
+      setSwaps([]); setSwapSel(null); setCommitted(null); setRepackedMap(null); setPinnedStudentIds(new Set()); setOverflow({}); setOverflowSel(null); setCommittedOverflow({});
+    };
+    rd.readAsArrayBuffer(file);
+    if (addFileRef.current) addFileRef.current.value = "";
   }
   function up(k,v) { setCfg(function(p){ var o={}; for(var x in p) o[x]=p[x]; o[k]=v; return o; }); setSwaps([]); setSwapSel(null); setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({}); }
   function save() {
@@ -605,14 +627,24 @@ function App() {
     ce("div",{className:"card"},
       ce("div",{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:12}},
         ce("input",{ref:fileRef,type:"file",accept:".xlsx,.xls",onChange:onFile,style:{display:"none"}}),
+        ce("input",{ref:addFileRef,type:"file",accept:".xlsx,.xls",onChange:onAddFile,style:{display:"none"}}),
         ce("button",{className:"btn-upload",onClick:function(){fileRef.current&&fileRef.current.click()},
           style:{background:students.length?"#e8f5e9":"#e3f2fd",color:students.length?"#2e7d32":"#1565c0",
                  border:students.length?"2px solid #a5d6a7":"2px dashed #90caf9"}},
           ce("span",{style:{fontSize:20}},students.length?"✅":"📂"),
           students.length?"ファイル変更":"UNIPAファイルを選択"),
+        students.length&&ce("button",{className:"btn-upload",onClick:function(){addFileRef.current&&addFileRef.current.click()},
+          style:{background:"#fff3e0",color:"#e65100",border:"2px dashed #ffcc80",padding:"8px 14px",fontSize:13}},
+          ce("span",{style:{fontSize:16}},"➕"),"ファイル追加"),
         students.length?
-          ce("div",null,ce("div",{style:{fontSize:13,fontWeight:600,color:"#333"}},fileName),
-            ce("div",{style:{fontSize:11,color:"#2e7d32"}},students.length+"名読込済（奇数末尾:"+oddC+"名/偶数末尾:"+evenC+"名）")):
+          ce("div",null,
+            fileNames.length>1?
+              ce("div",{style:{fontSize:12,color:"#333"}},fileNames.map(function(fn,i){
+                return ce("div",{key:i,style:{fontSize:11}},ce("span",{style:{color:"#888"}},(i+1)+". "),fn);
+              })):
+              ce("div",{style:{fontSize:13,fontWeight:600,color:"#333"}},fileName),
+            ce("div",{style:{fontSize:11,color:"#2e7d32"}},students.length+"名読込済（奇数末尾:"+oddC+"名/偶数末尾:"+evenC+"名）"+
+              (fileNames.length>1?"（"+fileNames.length+"ファイル統合）":""))):
           ce("div",{style:{fontSize:12,color:"#888"}},"UNIPAからダウンロードした履修者Excelファイル（.xlsx）")),
       ce("div",{style:{marginTop:10}},
         BUILDING_ORDER.map(function(bldg){
