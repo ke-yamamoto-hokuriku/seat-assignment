@@ -1,5 +1,5 @@
 // ========== 教室物理データ ==========
-// Auto-exported by Admin Ver.2.0
+// Auto-exported by Admin Ver.2.1
 // sameAs: 同型教室参照, parent+partitionHalf: パーティション分割
 
 var PHYSICAL = {
@@ -396,7 +396,6 @@ function seatsPerTable(n) {
 function isSeatPos(i, tableSize, roomType, leanRight, bothEdges) {
   if (tableSize <= 1) return true;
   if (roomType === "rect" && tableSize === 4) return (i === 0 || i === 3);
-  // 両側通路ブロック（rect中央）: 両端を座席にし、中は左寄せ
   if (bothEdges && roomType === "rect" && tableSize % 2 === 0) {
     return (i % 2 === 0 && i !== tableSize - 2) || i === tableSize - 1;
   }
@@ -444,7 +443,6 @@ function generateRoom(roomId) {
       if (room.type === "fan" && b % 2 === 0) {
         offset = maxBlockW[b] - chairCount;
       } else if (room.type === "rect" && chairCount < maxBlockW[b] && b < nBlocks / 2) {
-        // rect教室: 左半分のブロックで椅子数が少ない行は中央寄せ（右寄せ）
         offset = maxBlockW[b] - chairCount;
       }
       var pos = 0;
