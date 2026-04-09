@@ -357,6 +357,20 @@ function App() {
       aisleLabels.push(ce("text",{key:"a"+ai+"_"+r,x:ax,y:ya+25,textAnchor:"middle",fontSize:"7",fill:"#bbb"},r+1));
     }
   }
+  // Partition line (302, 402 etc.)
+  var partLine = [];
+  var phRoom = PHYSICAL[roomId];
+  if (phRoom && phRoom.partition && !phRoom.parent) {
+    // 全体表示: 破線で分割位置を示す
+    var py = rowY(phRoom.partition) - 2;
+    partLine.push(ce("line",{key:"part",x1:PAD,y1:py,x2:tw-PAD,y2:py,stroke:"#f59e0b",strokeWidth:2,strokeDasharray:"8,4"}));
+    partLine.push(ce("text",{key:"partL",x:tw/2,y:py-3,textAnchor:"middle",fontSize:"8",fill:"#f59e0b",fontWeight:"bold"},"パーティション"));
+  } else if (phRoom && phRoom.parent) {
+    // パーティション子: 最終行の下に実線（閉じた壁）
+    var py2 = rowY(room.rows - 1) + CH * 2 + 6;
+    partLine.push(ce("line",{key:"partW",x1:PAD,y1:py2,x2:tw-PAD,y2:py2,stroke:"#f59e0b",strokeWidth:2.5}));
+    partLine.push(ce("text",{key:"partWL",x:tw/2,y:py2+10,textAnchor:"middle",fontSize:"8",fill:"#f59e0b",fontWeight:"bold"},"パーティション"));
+  }
   // Podium & section labels
   var secs = room.sections;
   var midSec = secs[Math.floor(secs.length/2)];
@@ -466,7 +480,7 @@ function App() {
         ce("text",{x:tw-8,y:14,textAnchor:"end",fontSize:"9",fill:"#888"},"定員 "+room.capacity+"名"),
         ce("rect",{x:pcx-40,y:3,width:80,height:18,rx:3,fill:"#fff",stroke:"#999",strokeWidth:0.8}),
         ce("text",{x:pcx,y:15,textAnchor:"middle",fontSize:"10",fontWeight:"bold",fill:"#333"},room.podium||"教 卓"),
-        secLabels,rowLabels,cells,aisleLabels)),
+        secLabels,rowLabels,cells,aisleLabels,partLine)),
     students.length>0&&ce("details",{className:"card"},
       ce("summary",{style:{fontSize:12,fontWeight:600,cursor:"pointer"}},"名簿（"+students.length+"名）"),
       ce("div",{style:{marginTop:6,columns:"220px 4",fontSize:11}},
