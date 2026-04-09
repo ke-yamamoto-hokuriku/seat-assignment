@@ -293,7 +293,7 @@ function renderRoom(){
 
       const mx=cx+w/2, my=rY+TBL_H/2;
       if(a){
-        const sn=sMap[sid]||'';
+        const sn=showSeqNum?(sMap[sid]||''):'';
         svg.innerHTML+=`<text class="s-top" x="${mx}" y="${my-8}" dominant-baseline="middle">${sn}</text>`;
         svg.innerHTML+=`<text class="s-bot" x="${mx}" y="${my+9}" dominant-baseline="middle">${a.studentId}</text>`;
       } else if(isActive&&sMap[sid]&&showSeqNum){
