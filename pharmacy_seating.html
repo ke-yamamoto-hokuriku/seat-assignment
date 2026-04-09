@@ -295,7 +295,7 @@ function renderRoom(){
       if(a){
         const sn=showSeqNum?(sMap[sid]||''):'';
         svg.innerHTML+=`<text class="s-top" x="${mx}" y="${my-8}" dominant-baseline="middle">${sn}</text>`;
-        svg.innerHTML+=`<text class="s-bot" x="${mx}" y="${my+9}" dominant-baseline="middle">${a.studentId}</text>`;
+        svg.innerHTML+=`<text class="s-bot" x="${mx}" y="${my+(showSeqNum?9:0)}" dominant-baseline="middle">${a.studentId}</text>`;
       } else if(isActive&&sMap[sid]&&showSeqNum){
         svg.innerHTML+=`<text class="s-num" x="${mx}" y="${my}">${sMap[sid]}</text>`;
       }
