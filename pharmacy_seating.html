@@ -80,6 +80,8 @@
   .skip-group { display:flex; align-items:center; gap:4px; }
   .skip-group label { color:var(--text-light); white-space:nowrap; }
   .skip-input { width:36px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:11px; text-align:center; }
+  .skip-toggle { font-size:11px; padding:3px 10px; border:1px solid var(--border); border-radius:3px; background:var(--surface); cursor:pointer; white-space:nowrap; }
+  .skip-toggle.off { color:var(--text-light); }
   .footer { text-align:center; padding:10px; font-size:11px; color:var(--text-light); flex-shrink:0; }
   @media print { header,.toolbar,.statusbar{display:none!important} .room-area{padding:10px} body{background:#fff} }
 </style>
@@ -105,6 +107,7 @@
   <div class="skip-group"><label>後 skip</label><input class="skip-input" type="number" id="skipBack" value="0" min="0" onchange="onSkipChange()"></div>
   <div class="skip-group"><label>左 skip</label><input class="skip-input" type="number" id="skipLeft" value="0" min="0" onchange="onSkipChange()"></div>
   <div class="skip-group"><label>右 skip</label><input class="skip-input" type="number" id="skipRight" value="0" min="0" onchange="onSkipChange()"></div>
+  <button class="skip-toggle" id="btnSeqNum" onclick="toggleSeqNum()">通し番号: ON</button>
 </div>
 <div class="main">
   <div class="sidebar" id="rosterSec">
@@ -188,7 +191,7 @@
 <script>
 let curRoom=Object.keys(ROOMS)[0];
 function R(){return ROOMS[curRoom]}
-let students=[],selIdx=null,subjectName='',teacherName='',asgn={},hist=[],mode='manual',swapId=null,moved=new Set();
+let students=[],selIdx=null,subjectName='',teacherName='',showSeqNum=true,asgn={},hist=[],mode='manual',swapId=null,moved=new Set();
 
 function populateRoomSelect(){document.getElementById('roomButtons').innerHTML=Object.keys(ROOMS).map(id=>`<button class="room-btn${id===curRoom?' active':''}" onclick="switchRoom('${id}')">${id}</button>`).join('')}
 function switchRoom(id){if(Object.keys(asgn).length>0&&!confirm('配席リセットしますか？'))return;curRoom=id;asgn={};hist=[];document.getElementById('skipFront').value=0;document.getElementById('skipBack').value=0;document.getElementById('skipLeft').value=0;document.getElementById('skipRight').value=0;selIdx=students.length?0:null;swapId=null;mode='manual';moved.clear();showConfirmBtn();showActionBtns();populateRoomSelect();renderRoom();renderRoster();updateInfoPanel()}
@@ -293,7 +296,7 @@ function renderRoom(){
         const sn=sMap[sid]||'';
         svg.innerHTML+=`<text class="s-top" x="${mx}" y="${my-8}" dominant-baseline="middle">${sn}</text>`;
         svg.innerHTML+=`<text class="s-bot" x="${mx}" y="${my+9}" dominant-baseline="middle">${a.studentId}</text>`;
-      } else if(isActive&&sMap[sid]){
+      } else if(isActive&&sMap[sid]&&showSeqNum){
         svg.innerHTML+=`<text class="s-num" x="${mx}" y="${my}">${sMap[sid]}</text>`;
       }
 
@@ -444,6 +447,13 @@ function showActionBtns(){
   document.getElementById('btnFill').style.display=(hasStudents&&!allAssigned)?'':'none';
   document.getElementById('btnRepack').style.display=(hasAsgn)?'':'none';
   showConfirmBtn();
+}
+function toggleSeqNum(){
+  showSeqNum=!showSeqNum;
+  const btn=document.getElementById('btnSeqNum');
+  btn.textContent='通し番号: '+(showSeqNum?'ON':'OFF');
+  btn.className='skip-toggle'+(showSeqNum?'':' off');
+  renderRoom();
 }
 function showAssignModal(){if(!students.length){alert('名簿を読み込んでください');return}document.getElementById('modeModal').classList.add('show')}
 function showBtnAssign(){document.getElementById('btnAssign').style.display=students.length?'':'none'}
