@@ -82,7 +82,7 @@ ROOM_GROUPS.forEach(function(g) {
   if (!BUILDING_GROUPS[g.building]) BUILDING_GROUPS[g.building] = [];
   BUILDING_GROUPS[g.building].push(g);
 });
-var BUILDING_ORDER = ["太陽が丘１号棟","太陽が丘２号棟","薬学部キャンパス"];
+var BUILDING_ORDER = ["太陽が丘１号棟","太陽が丘２号棟"];
 BUILDING_ORDER.forEach(function(b){ if(!BUILDING_GROUPS[b]) BUILDING_GROUPS[b]=[]; });
 
 // ブロック内最大席数を適用してROOMを再生成
