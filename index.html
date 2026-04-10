@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 北陸大学座席指定システム  Ver.2.5  2026.04.09 -->
+<!-- 北陸大学座席指定システム  Ver.2.6  2026.04.10 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -32,10 +32,11 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.5　2026.04.09｜<a href="pharmacy_seating.html" style="color:#1a237e">薬学部キャンパスはこちら →</a></div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.6　2026.04.10</div>
 <details style="max-width:720px;margin:0 auto 16px;font-size:10px;color:#aaa">
 <summary style="cursor:pointer;text-align:center;padding:4px">バージョン履歴</summary>
 <div style="padding:8px 16px;line-height:1.8;text-align:left">
+<b>Ver.2.6</b> (2026.04.10) — 学籍番号表示のフォントサイズ拡大（7→9）、セル幅拡大（56→60）<br>
 <b>Ver.2.5</b> (2026.04.09) — 座席の手動入れ替え/移動、詰め直し、確定、無理に詰め込む（ギャップ席へのオーバーフロー配置）<br>
 <b>Ver.2.4</b> (2026.04.08) — 棟別グループ表示、学籍番号/学生氏名切り替え、rect教室の通路側寄せ改善、ヘルプボタン追加<br>
 <b>Ver.2.3</b> (2026.04.07) — 管理者画面追加、ROOM_LIST自動生成、同型教室グループ表示、パーティションI/II<br>
@@ -168,7 +169,7 @@ ALL_ROOMS.forEach(function(id) { ROOMS[id] = applyMaxPerBlock(id, DEFAULT_MAX[id
 var R = React, ce = R.createElement;
 var useState = R.useState, useRef = R.useRef, useMemo = R.useMemo;
 
-var SW = 56, GW = 12, CH = 22, AG = 20, PAD = 24, HDR = 44;
+var SW = 60, GW = 12, CH = 22, AG = 20, PAD = 24, HDR = 44;
 function rowY(r) { return HDR + 6 + r * (CH * 2 + 4); }
 
 function calcLayout(room) {
@@ -526,7 +527,7 @@ function App() {
             fill:isSel?"#bbdefb":isSwapped?"#e8eaf6":st?"#FFFDE7":"#fff",
             stroke:isSel?"#1565c0":isSwapped?"#5c6bc0":st?"#c5a000":"#ccc",
             strokeWidth:isSel?2:isSwapped?1.5:st?1.2:0.5}),
-          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:isSel?"#1565c0":isSwapped?"#283593":"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
+          st&&ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"9",fontWeight:"bold",fill:isSel?"#1565c0":isSwapped?"#283593":"#1a237e"},dispMode==="name"?(st.name||st.id):st.id)
         ));
       } else if (sn > 0 && isExcluded) {
         cells.push(ce("g",{key:"x"+r+"_"+c},
@@ -544,13 +545,13 @@ function App() {
           cells.push(ce("g",{key:"ov"+r+"_"+c,style:{cursor:"pointer"},onClick:function(k){return function(){onOverflowClick(k)}}(ovKey)},
             ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
               fill:isOvSel?"#bbdefb":"#FFEBEE",stroke:isOvSel?"#1565c0":"#c62828",strokeWidth:isOvSel?2:1.2}),
-            ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:isOvSel?"#1565c0":"#c62828"},dispMode==="name"?(ovSt.name||ovSt.id):ovSt.id)
+            ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"9",fontWeight:"bold",fill:isOvSel?"#1565c0":"#c62828"},dispMode==="name"?(ovSt.name||ovSt.id):ovSt.id)
           ));
         } else if (covSt) {
           cells.push(ce("g",{key:"cov"+r+"_"+c},
             ce("rect",{x:x,y:y+10,width:w,height:CH,rx:"2",
               fill:"#FFFDE7",stroke:"#c5a000",strokeWidth:1.2}),
-            ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"7",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(covSt.name||covSt.id):covSt.id)
+            ce("text",{x:x+w/2,y:y+25,textAnchor:"middle",fontSize:dispMode==="name"?"6":"9",fontWeight:"bold",fill:"#1a237e"},dispMode==="name"?(covSt.name||covSt.id):covSt.id)
           ));
         } else if (gapClickable) {
           cells.push(ce("rect",{key:"g"+r+"_"+c,
