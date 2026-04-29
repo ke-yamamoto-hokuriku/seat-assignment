@@ -87,14 +87,16 @@ var PHYSICAL = {
   },
 
   "302": {
-    name: "302", podium: "教 卓", type: "rect", rows: 10,
-    partition: 5,
+    name: "302", podium: "教 卓", type: "rect", rows: 12,
+    partition: 7,
     sections: [
       { name: "左", blocks: [1] },
       { name: "中央", blocks: [2] },
       { name: "右", blocks: [3] }
     ],
     tables: [
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
@@ -108,13 +110,15 @@ var PHYSICAL = {
     ]
   },
 
-  "302-I": { name: "302-I", podium: "教 卓", type: "rect", rows: 5, parent: "302", partitionHalf: "front",
+  "302-I": { name: "302-I", podium: "教 卓", type: "rect", rows: 7, parent: "302", partitionHalf: "front",
     sections: [
       { name: "左", blocks: [1] },
       { name: "中央", blocks: [2] },
       { name: "右", blocks: [3] }
     ],
     tables: [
+      [[3],[3,3],[3]],
+      [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
       [[3],[3,3],[3]],
@@ -140,7 +144,6 @@ var PHYSICAL = {
 
   "402": {
     name: "402", podium: "教 卓", type: "rect", rows: 10,
-    sameAs: "302",
     partition: 5,
     sections: [
       { name: "左", blocks: [1] },
