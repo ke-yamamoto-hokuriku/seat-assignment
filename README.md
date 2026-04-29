@@ -159,6 +159,7 @@ GitHub Pages: `https://ke-yamamoto-hokuriku.github.io/seat-assignment/`
 ### 依存ライブラリ（CDN）
 - React 18.2.0 / ReactDOM 18.2.0
 - SheetJS (xlsx) 0.18.5
+- JSZip 3.10.1（分割画像のZIPダウンロード用）
 
 ### デプロイ
 - `index.html` + `rooms_physical.js` の2ファイルをGitHub Pagesに配置

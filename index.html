@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:#eef0f6;min-height:100vh;padding:10px}
@@ -535,12 +536,34 @@ function App() {
   function download() {
     if(!exportImgs.length)return;
     var base="座席表_"+room.name+(dispMode==="name"?"_氏名":"");
-    exportImgs.forEach(function(im){
+    if(exportImgs.length===1){
       var a=document.createElement("a");
-      a.href=im.src;
-      a.download=base+(im.label?"_"+im.label:"")+".png";
+      a.href=exportImgs[0].src;
+      a.download=base+".png";
       a.click();
-    });
+    } else {
+      var zip=new JSZip();
+      exportImgs.forEach(function(im,idx){
+        var fn=base+(im.label?"_"+im.label:"")+".png";
+        var b64=im.src.split(",")[1];
+        zip.file(fn,b64,{base64:true});
+      });
+      zip.generateAsync({type:"blob"}).then(function(blob){
+        var a=document.createElement("a");
+        a.href=URL.createObjectURL(blob);
+        a.download=base+"_分割.zip";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    }
+  }
+  function downloadOne(idx) {
+    var im=exportImgs[idx]; if(!im)return;
+    var base="座席表_"+room.name+(dispMode==="name"?"_氏名":"");
+    var a=document.createElement("a");
+    a.href=im.src;
+    a.download=base+(im.label?"_"+im.label:"")+".png";
+    a.click();
   }
 
   // ===== SVG cells =====
@@ -737,7 +760,7 @@ function App() {
           ce("select",{className:"ctrl-select",value:splitMode,onChange:function(e){setSplitMode(e.target.value);setExportImgs([]);}},
             ce("option",{value:"none"},"なし"),ce("option",{value:"2"},"2分割"),ce("option",{value:"3"},"3分割"))),
         ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
-        exportImgs.length>0&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
+        exportImgs.length>0&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},exportImgs.length>1?"📦 ZIPダウンロード":"💾 ダウンロード")),
       students.length>0&&ce("div",{className:"stats"},
         ce("span",null,"受講者: ",ce("b",null,students.length)),
         ce("span",null,"使用席: ",ce("b",null,res.used)),
@@ -792,8 +815,11 @@ function App() {
         ce("span",{style:{fontSize:13,fontWeight:700,color:"#1a237e"}},"生成画像"+(exportImgs.length>1?"（"+exportImgs.length+"枚）":"")+"（右クリック/長押しで保存）"),
         ce("button",{onClick:function(){setExportImgs([])},style:{background:"#eee",border:"none",borderRadius:4,padding:"3px 10px",fontSize:11,cursor:"pointer"}},"閉じる")),
       exportImgs.map(function(im,idx){
-        return ce("div",{key:idx,style:{marginBottom:idx<exportImgs.length-1?8:0}},
-          im.label&&ce("div",{style:{fontSize:11,fontWeight:600,color:"#5c6bc0",marginBottom:2,textAlign:"center"}},im.label),
+        return ce("div",{key:idx,style:{marginBottom:idx<exportImgs.length-1?12:0}},
+          ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}},
+            im.label?ce("span",{style:{fontSize:11,fontWeight:600,color:"#5c6bc0"}},im.label):ce("span"),
+            exportImgs.length>1&&ce("button",{onClick:function(){downloadOne(idx)},
+              style:{background:"#2e7d32",color:"#fff",border:"none",borderRadius:4,padding:"2px 10px",fontSize:10,cursor:"pointer"}},"💾 "+( im.label||"保存"))),
           ce("div",{style:{border:"1px solid #ddd",borderRadius:6,overflow:"auto",maxHeight:400}},
             ce("img",{src:im.src,alt:"座席表"+(im.label?" "+im.label:""),style:{width:"100%",display:"block"}})));
       })),
