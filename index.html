@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 北陸大学座席指定システム  Ver.2.6  2026.04.10 -->
+<!-- 北陸大学座席指定システム  Ver.2.7  2026.04.29 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -32,10 +32,12 @@ body{font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;background:
 </head>
 <body>
 <div id="root"></div>
-<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.6　2026.04.10｜<a href="pharmacy_seating.html" style="color:#5c6bc0">薬学部キャンパスはこちら →</a></div>
+<div style="text-align:center;padding:12px;font-size:11px;color:#999;margin-top:4px">作者：山本啓一（北陸大学）｜Ver.2.7　2026.04.29｜<a href="pharmacy_seating.html" style="color:#5c6bc0">薬学部キャンパスはこちら →</a></div>
 <details style="max-width:720px;margin:0 auto 16px;font-size:10px;color:#aaa">
 <summary style="cursor:pointer;text-align:center;padding:4px">バージョン履歴</summary>
 <div style="padding:8px 16px;line-height:1.8;text-align:left">
+<b>Ver.2.7</b> (2026.04.29) — 201/202教室の画像分割出力（2分割・3分割）、302教室12行化・402独立化<br>
+<b>データ修正</b> (2026.04.29) — 302教室を10行→12行（I=7行/II=5行）に修正、402を独立教室化<br>
 <b>Ver.2.6</b> (2026.04.10) — 学籍番号表示のフォントサイズ拡大（7→9）、セル幅拡大（56→60）<br>
 <b>Ver.2.5</b> (2026.04.09) — 座席の手動入れ替え/移動、詰め直し、確定、無理に詰め込む（ギャップ席へのオーバーフロー配置）<br>
 <b>Ver.2.4</b> (2026.04.08) — 棟別グループ表示、学籍番号/学生氏名切り替え、rect教室の通路側寄せ改善、ヘルプボタン追加<br>
@@ -274,7 +276,8 @@ function App() {
     direction:"horizontal",leftRight:"left",order:"sequential",
     colGap:0,rowGap:0,skipFront:0,skipBack:0,skipLeft:0,skipRight:0
   }), cfg = _cfg[0], setCfg = _cfg[1];
-  var _exp = useState(null), exportImg = _exp[0], setExportImg = _exp[1];
+  var _exp = useState([]), exportImgs = _exp[0], setExportImgs = _exp[1];
+  var _split = useState("none"), splitMode = _split[0], setSplitMode = _split[1];
   var _fn = useState(""), fileName = _fn[0], setFileName = _fn[1];
   var _exc = useState(false), excludeCenter = _exc[0], setExcludeCenter = _exc[1];
   var _disp = useState("id"), dispMode = _disp[0], setDispMode = _disp[1];
@@ -498,11 +501,47 @@ function App() {
     img.onload=function(){
       var cv=document.createElement("canvas"); cv.width=tw*2; cv.height=th*2;
       var ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);
-      ctx.scale(2,2); ctx.drawImage(img,0,0,tw,th); setExportImg(cv.toDataURL("image/png"));
+      ctx.scale(2,2); ctx.drawImage(img,0,0,tw,th);
+      var secs=room.sections;
+      if(splitMode==="none"||!secs||secs.length<3){
+        setExportImgs([{src:cv.toDataURL("image/png"),label:""}]);
+      } else {
+        var splits=[];
+        if(splitMode==="3"){
+          var b1=(colXArr[secs[0].e]+colWArr[secs[0].e]+colXArr[secs[1].s])/2;
+          var b2=(colXArr[secs[1].e]+colWArr[secs[1].e]+colXArr[secs[2].s])/2;
+          splits=[{x0:0,x1:b1,label:secs[0].name},{x0:b1,x1:b2,label:secs[1].name},{x0:b2,x1:tw,label:secs[2].name}];
+        } else {
+          var ia=room.innerAisles||[];
+          var bm;
+          if(ia.length>0){var mi=ia[Math.floor(ia.length/2)];bm=(colXArr[mi]+colWArr[mi]+colXArr[mi+1])/2;}
+          else{bm=(colXArr[secs[0].e]+colWArr[secs[0].e]+colXArr[secs[2].s])/2;}
+          splits=[{x0:0,x1:bm,label:"左"},{x0:bm,x1:tw,label:"右"}];
+        }
+        var imgs=[];
+        splits.forEach(function(sp){
+          var sx=Math.round(sp.x0*2), ex=Math.round(sp.x1*2);
+          var w=ex-sx, h=th*2;
+          var crop=document.createElement("canvas"); crop.width=w; crop.height=h;
+          var cctx=crop.getContext("2d"); cctx.fillStyle="#fff"; cctx.fillRect(0,0,w,h);
+          cctx.drawImage(cv,sx,0,w,h,0,0,w,h);
+          imgs.push({src:crop.toDataURL("image/png"),label:sp.label});
+        });
+        setExportImgs(imgs);
+      }
     };
     img.src="data:image/svg+xml;base64,"+svg64;
   }
-  function download() { if(!exportImg)return; var a=document.createElement("a"); a.href=exportImg; a.download="座席表_"+room.name+(dispMode==="name"?"_氏名":"")+".png"; a.click(); }
+  function download() {
+    if(!exportImgs.length)return;
+    var base="座席表_"+room.name+(dispMode==="name"?"_氏名":"");
+    exportImgs.forEach(function(im){
+      var a=document.createElement("a");
+      a.href=im.src;
+      a.download=base+(im.label?"_"+im.label:"")+".png";
+      a.click();
+    });
+  }
 
   // ===== SVG cells =====
   var cells = [];
@@ -661,7 +700,7 @@ function App() {
                   var isPartBtn = !!ph.parent;
                   return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
                     style:isPartBtn?{fontSize:11,padding:"4px 8px"}:{},
-                    onClick:function(){setRoomId(rid);setExportImg(null);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},
+                    onClick:function(){setRoomId(rid);setExportImgs([]);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},
                     label,ce("span",{style:{fontSize:isPartBtn?8:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
                 });
                 if(gi < groups.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
@@ -685,17 +724,20 @@ function App() {
         ce("div",null,ce("span",{className:"ctrl-label"},"ブロック内最大席数"),
           ce("div",{style:{display:"flex",alignItems:"center",gap:4}},
             ce("input",{type:"number",className:"ctrl-num",min:1,max:20,value:curMax,
-              onChange:function(e){var v=parseInt(e.target.value)||1;setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=v;return o;});setExportImg(null);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}}),
+              onChange:function(e){var v=parseInt(e.target.value)||1;setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=v;return o;});setExportImgs([]);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}}),
             curMax !== DEFAULT_MAX[roomId] && ce("button",{style:{fontSize:9,background:"#eee",border:"1px solid #ccc",borderRadius:4,padding:"1px 6px",cursor:"pointer",lineHeight:"1.4"},
-              onClick:function(){setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=DEFAULT_MAX[roomId];return o;});setExportImg(null);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},"↩"))),
+              onClick:function(){setMaxPerBlock(function(p){var o={};for(var k in p)o[k]=p[k];o[roomId]=DEFAULT_MAX[roomId];return o;});setExportImgs([]);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},"↩"))),
         room.centerExclude&&ce("label",{style:{fontSize:12,display:"flex",alignItems:"center",gap:5,height:30,cursor:"pointer",userSelect:"none"}},
           ce("input",{type:"checkbox",checked:excludeCenter,onChange:function(e){setExcludeCenter(e.target.checked);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});},style:{width:16,height:16}}),
           "中央4席除外"),
         ce("div",null,ce("span",{className:"ctrl-label"},"表示"),
-          ce("select",{className:"ctrl-select",value:dispMode,onChange:function(e){setDispMode(e.target.value);setExportImg(null);}},
+          ce("select",{className:"ctrl-select",value:dispMode,onChange:function(e){setDispMode(e.target.value);setExportImgs([]);}},
             ce("option",{value:"id"},"学籍番号"),ce("option",{value:"name"},"学生氏名"))),
+        PHYSICAL[roomId]&&PHYSICAL[roomId].type==="fan"&&ce("div",null,ce("span",{className:"ctrl-label"},"分割"),
+          ce("select",{className:"ctrl-select",value:splitMode,onChange:function(e){setSplitMode(e.target.value);setExportImgs([]);}},
+            ce("option",{value:"none"},"なし"),ce("option",{value:"2"},"2分割"),ce("option",{value:"3"},"3分割"))),
         ce("button",{className:"btn-export",onClick:save},"🖼️ 画像生成"),
-        exportImg&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
+        exportImgs.length>0&&ce("button",{className:"btn-export",onClick:download,style:{background:"#2e7d32"}},"💾 ダウンロード")),
       students.length>0&&ce("div",{className:"stats"},
         ce("span",null,"受講者: ",ce("b",null,students.length)),
         ce("span",null,"使用席: ",ce("b",null,res.used)),
@@ -745,12 +787,16 @@ function App() {
             return ce("span",{key:i,className:"swap-badge",onClick:function(){removeSwap(i)},title:"クリックで取消"},
               label," ✕");
           })))),
-    exportImg&&ce("div",{className:"card"},
+    exportImgs.length>0&&ce("div",{className:"card"},
       ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
-        ce("span",{style:{fontSize:13,fontWeight:700,color:"#1a237e"}},"生成画像（右クリック/長押しで保存）"),
-        ce("button",{onClick:function(){setExportImg(null)},style:{background:"#eee",border:"none",borderRadius:4,padding:"3px 10px",fontSize:11,cursor:"pointer"}},"閉じる")),
-      ce("div",{style:{border:"1px solid #ddd",borderRadius:6,overflow:"auto",maxHeight:500}},
-        ce("img",{src:exportImg,alt:"座席表",style:{width:"100%",display:"block"}}))),
+        ce("span",{style:{fontSize:13,fontWeight:700,color:"#1a237e"}},"生成画像"+(exportImgs.length>1?"（"+exportImgs.length+"枚）":"")+"（右クリック/長押しで保存）"),
+        ce("button",{onClick:function(){setExportImgs([])},style:{background:"#eee",border:"none",borderRadius:4,padding:"3px 10px",fontSize:11,cursor:"pointer"}},"閉じる")),
+      exportImgs.map(function(im,idx){
+        return ce("div",{key:idx,style:{marginBottom:idx<exportImgs.length-1?8:0}},
+          im.label&&ce("div",{style:{fontSize:11,fontWeight:600,color:"#5c6bc0",marginBottom:2,textAlign:"center"}},im.label),
+          ce("div",{style:{border:"1px solid #ddd",borderRadius:6,overflow:"auto",maxHeight:400}},
+            ce("img",{src:im.src,alt:"座席表"+(im.label?" "+im.label:""),style:{width:"100%",display:"block"}})));
+      })),
     ce("div",{className:"card",style:{padding:8,overflowX:"auto"}},
       ce("svg",{ref:svgRef,viewBox:"0 0 "+tw+" "+th,width:tw,height:th,xmlns:"http://www.w3.org/2000/svg",style:{display:"block",margin:"0 auto"}},
         ce("rect",{width:tw,height:th,fill:"#fff"}),
@@ -821,7 +867,7 @@ function App() {
           "詰め込んだ学生をクリックして別のギャップ椅子に移動することもできます。「✓ 確定」で赤枠が黄枠（通常）に変わります。"),
 
         ce("div",{style:{fontSize:14,fontWeight:700,color:"#1a237e",marginBottom:6}},"6. 画像を生成・保存する"),
-        ce("div",{style:{fontSize:12,color:"#444",marginBottom:16,lineHeight:1.6}},"「画像生成」ボタンで座席表のPNG画像を作成します。「ダウンロード」ボタンまたは画像を右クリック/長押しで保存できます。"),
+        ce("div",{style:{fontSize:12,color:"#444",marginBottom:16,lineHeight:1.6}},"「画像生成」ボタンで座席表のPNG画像を作成します。「ダウンロード」ボタンまたは画像を右クリック/長押しで保存できます。201・202教室では「分割」で画像を2分割（左右）または3分割（セクション別）で出力できます。"),
 
         ce("div",{style:{background:"#f5f5f5",borderRadius:8,padding:12,marginBottom:12}},
           ce("div",{style:{fontSize:13,fontWeight:700,color:"#333",marginBottom:6}},"座席配置の考え方"),
