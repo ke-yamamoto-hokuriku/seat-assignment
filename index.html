@@ -723,7 +723,7 @@ function App() {
                   var isPartBtn = !!ph.parent;
                   return ce("button",{key:rid,className:"btn-room "+(sel?"active":"inactive"),
                     style:isPartBtn?{fontSize:11,padding:"4px 8px"}:{},
-                    onClick:function(){setRoomId(rid);setExportImgs([]);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},
+                    onClick:function(){setRoomId(rid);setSplitMode("none");setExportImgs([]);setSwaps([]);setSwapSel(null);setCommitted(null);setRepackedMap(null);setPinnedStudentIds(new Set());setOverflow({});setOverflowSel(null);setCommittedOverflow({});}},
                     label,ce("span",{style:{fontSize:isPartBtn?8:9,opacity:0.7,marginLeft:3}},"("+cap+")"));
                 });
                 if(gi < groups.length-1) btns.push(ce("span",{key:"sep"+gi,style:{color:"#ccc",fontSize:16,margin:"0 2px"}},"|"));
